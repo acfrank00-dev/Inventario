@@ -1,0 +1,1905 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Inventario Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/fontsource-inter/index.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0f172a; color: #e2e8f0; display: flex; min-height: 100vh; }
+        
+        /* Sidebar */
+        .sidebar { width: 260px; background: #1e293b; border-right: 1px solid #334155; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100; transition: transform 0.3s; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid #334155; }
+        .sidebar-header h1 { font-size: 18px; color: #38bdf8; display: flex; align-items: center; gap: 10px; }
+        .sidebar-header h1 .ti { font-size: 24px; }
+        .sidebar-nav { flex: 1; overflow-y: auto; padding: 10px 0; }
+        .sidebar-nav::-webkit-scrollbar { width: 4px; }
+        .sidebar-nav::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .nav-section { padding: 8px 20px; font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-top: 10px; }
+        .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 20px; cursor: pointer; transition: all 0.2s; color: #94a3b8; font-size: 14px; border-left: 3px solid transparent; }
+        .nav-item:hover { background: #334155; color: #e2e8f0; }
+        .nav-item.active { background: rgba(56, 189, 248, 0.1); color: #38bdf8; border-left-color: #38bdf8; }
+        .nav-item .ti { font-size: 20px; width: 24px; text-align: center; }
+        .nav-item .badge { margin-left: auto; background: #ef4444; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+        .sidebar-footer { padding: 15px 20px; border-top: 1px solid #334155; }
+        .user-info { display: flex; align-items: center; gap: 10px; }
+        .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #38bdf8, #818cf8); display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; }
+        .user-details { flex: 1; }
+        .user-name { font-size: 13px; font-weight: 600; }
+        .user-role { font-size: 11px; color: #64748b; }
+
+        /* Main Content */
+        .main-content { margin-left: 260px; flex: 1; min-height: 100vh; }
+        .topbar { background: #1e293b; border-bottom: 1px solid #334155; padding: 15px 30px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+        .topbar-left { display: flex; align-items: center; gap: 15px; }
+        .menu-toggle { display: none; background: none; border: none; color: #e2e8f0; font-size: 24px; cursor: pointer; }
+        .page-title { font-size: 20px; font-weight: 600; }
+        .topbar-right { display: flex; align-items: center; gap: 15px; }
+        .topbar-btn { background: #334155; border: none; color: #94a3b8; padding: 8px; border-radius: 8px; cursor: pointer; transition: all 0.2s; position: relative; }
+        .topbar-btn:hover { background: #475569; color: #e2e8f0; }
+        .topbar-btn .notif-dot { position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; }
+
+        .content-area { padding: 30px; }
+        .section { display: none; animation: fadeIn 0.3s ease; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Cards */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; transition: transform 0.2s, box-shadow 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
+        .stat-card .stat-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 12px; }
+        .stat-card .stat-icon.blue { background: rgba(56,189,248,0.15); color: #38bdf8; }
+        .stat-card .stat-icon.green { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .stat-card .stat-icon.yellow { background: rgba(234,179,8,0.15); color: #eab308; }
+        .stat-card .stat-icon.red { background: rgba(239,68,68,0.15); color: #ef4444; }
+        .stat-card .stat-icon.purple { background: rgba(168,85,247,0.15); color: #a855f7; }
+        .stat-card .stat-value { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+        .stat-card .stat-label { font-size: 13px; color: #64748b; }
+
+        /* Tables */
+        .table-container { background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden; }
+        .table-header { padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #334155; flex-wrap: wrap; gap: 10px; }
+        .table-title { font-size: 16px; font-weight: 600; }
+        .table-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .search-input { background: #334155; border: 1px solid #475569; color: #e2e8f0; padding: 8px 12px 8px 35px; border-radius: 8px; font-size: 13px; width: 250px; }
+        .search-wrapper { position: relative; }
+        .search-wrapper .ti { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 18px; }
+        .table-scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #0f172a; padding: 12px 15px; text-align: left; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; font-weight: 600; white-space: nowrap; }
+        td { padding: 12px 15px; border-bottom: 1px solid #1e293b; font-size: 13px; white-space: nowrap; }
+        tr:hover td { background: rgba(56,189,248,0.03); }
+        .stock-low { color: #ef4444; font-weight: 600; }
+        .stock-ok { color: #22c55e; font-weight: 600; }
+        .stock-warn { color: #eab308; font-weight: 600; }
+
+        /* Buttons */
+        .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; font-family: 'Inter', sans-serif; }
+        .btn-primary { background: #38bdf8; color: #0f172a; }
+        .btn-primary:hover { background: #7dd3fc; }
+        .btn-success { background: #22c55e; color: white; }
+        .btn-success:hover { background: #4ade80; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #f87171; }
+        .btn-warning { background: #eab308; color: #0f172a; }
+        .btn-warning:hover { background: #facc15; }
+        .btn-secondary { background: #334155; color: #e2e8f0; }
+        .btn-secondary:hover { background: #475569; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-icon { padding: 6px 8px; background: none; border: none; color: #94a3b8; cursor: pointer; border-radius: 6px; transition: all 0.2s; }
+        .btn-icon:hover { background: #334155; color: #e2e8f0; }
+        .btn-icon.danger:hover { background: rgba(239,68,68,0.15); color: #ef4444; }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal-overlay.active { display: flex; }
+        .modal { background: #1e293b; border-radius: 16px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; border: 1px solid #334155; animation: modalIn 0.3s ease; }
+        @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .modal-header { padding: 20px 24px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; }
+        .modal-header h2 { font-size: 18px; }
+        .modal-close { background: none; border: none; color: #64748b; font-size: 24px; cursor: pointer; }
+        .modal-close:hover { color: #e2e8f0; }
+        .modal-body { padding: 24px; }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid #334155; display: flex; justify-content: flex-end; gap: 10px; }
+
+        /* Form */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-group label { font-size: 13px; color: #94a3b8; font-weight: 500; }
+        .form-group input, .form-group select, .form-group textarea { background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 10px 12px; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; transition: border-color 0.2s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #38bdf8; }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+
+        /* Alerts */
+        .alert-item { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 15px 20px; margin-bottom: 10px; display: flex; align-items: center; gap: 15px; transition: all 0.2s; }
+        .alert-item:hover { border-color: #475569; }
+        .alert-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .alert-icon.critical { background: rgba(239,68,68,0.15); color: #ef4444; }
+        .alert-icon.warning { background: rgba(234,179,8,0.15); color: #eab308; }
+        .alert-icon.info { background: rgba(56,189,248,0.15); color: #38bdf8; }
+        .alert-content { flex: 1; }
+        .alert-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+        .alert-desc { font-size: 12px; color: #64748b; }
+        .alert-time { font-size: 11px; color: #475569; white-space: nowrap; }
+
+        /* Charts */
+        .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-top: 20px; }
+        .chart-card { background: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 20px; }
+        .chart-card h3 { font-size: 15px; margin-bottom: 15px; color: #94a3b8; }
+
+        /* Filter bar */
+        .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .filter-bar select, .filter-bar input { background: #334155; border: 1px solid #475569; color: #e2e8f0; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; }
+
+        /* Tabs */
+        .tab-bar { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 0; }
+        .tab-btn { padding: 10px 20px; background: none; border: none; color: #64748b; cursor: pointer; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: all 0.2s; font-family: 'Inter', sans-serif; }
+        .tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+        .tab-btn:hover { color: #e2e8f0; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Toast */
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 2000; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 20px; display: flex; align-items: center; gap: 10px; animation: slideIn 0.3s ease; min-width: 300px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .toast.success { border-left: 4px solid #22c55e; }
+        .toast.error { border-left: 4px solid #ef4444; }
+        .toast.info { border-left: 4px solid #38bdf8; }
+        .toast .ti { font-size: 20px; }
+        .toast.success .ti { color: #22c55e; }
+        .toast.error .ti { color: #ef4444; }
+        .toast.info .ti { color: #38bdf8; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(50px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* Login */
+        .login-container { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #0f172a; z-index: 3000; align-items: center; justify-content: center; }
+        .login-container.active { display: flex; }
+        .login-box { background: #1e293b; border-radius: 16px; padding: 40px; width: 90%; max-width: 420px; border: 1px solid #334155; text-align: center; }
+        .login-box .logo { font-size: 48px; color: #38bdf8; margin-bottom: 10px; }
+        .login-box h2 { font-size: 24px; margin-bottom: 8px; }
+        .login-box p { color: #64748b; font-size: 14px; margin-bottom: 30px; }
+        .login-box .form-group { text-align: left; margin-bottom: 16px; }
+        .login-box .btn { width: 100%; justify-content: center; padding: 12px; font-size: 15px; }
+
+        /* Empty state */
+        .empty-state { text-align: center; padding: 60px 20px; color: #475569; }
+        .empty-state .ti { font-size: 64px; margin-bottom: 15px; display: block; }
+        .empty-state h3 { font-size: 18px; color: #64748b; margin-bottom: 8px; }
+        .empty-state p { font-size: 14px; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+            .menu-toggle { display: block; }
+            .form-grid { grid-template-columns: 1fr; }
+            .chart-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .content-area { padding: 15px; }
+            .search-input { width: 150px; }
+        }
+
+        /* Print */
+        @media print {
+            .sidebar, .topbar, .btn, .modal-overlay { display: none !important; }
+            .main-content { margin-left: 0; }
+            body { background: white; color: black; }
+        }
+
+        .overlay-sidebar { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 99; }
+        .overlay-sidebar.active { display: block; }
+
+        .tag { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .tag-blue { background: rgba(56,189,248,0.15); color: #38bdf8; }
+        .tag-green { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .tag-red { background: rgba(239,68,68,0.15); color: #ef4444; }
+        .tag-yellow { background: rgba(234,179,8,0.15); color: #eab308; }
+
+        .file-input-wrapper { position: relative; overflow: hidden; display: inline-block; }
+        .file-input-wrapper input[type="file"] { position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+        .audit-log-item { padding: 12px 0; border-bottom: 1px solid #1e293b; display: flex; gap: 15px; align-items: flex-start; }
+        .audit-log-item:last-child { border-bottom: none; }
+        .audit-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+        .audit-dot.create { background: #22c55e; }
+        .audit-dot.update { background: #38bdf8; }
+        .audit-dot.delete { background: #ef4444; }
+        .audit-dot.login { background: #a855f7; }
+    </style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div class="login-container active" id="loginScreen">
+    <div class="login-box">
+        <div class="logo"><i class="ti ti-box-seam"></i></div>
+        <h2>Inventario Pro</h2>
+        <p>Sistema de Gestión de Inventario</p>
+        <div class="form-group">
+            <label>Usuario</label>
+            <input type="text" id="loginUser" placeholder="admin" value="admin">
+        </div>
+        <div class="form-group">
+            <label>Contraseña</label>
+            <input type="password" id="loginPass" placeholder="admin123" value="admin123">
+        </div>
+        <div class="form-group" style="margin-top:10px;">
+            <label>Rol</label>
+            <select id="loginRole">
+                <option value="admin">Administrador</option>
+                <option value="almacenista">Almacenista</option>
+                <option value="consulta">Solo consulta</option>
+            </select>
+        </div>
+        <button class="btn btn-primary" onclick="handleLogin()" style="margin-top:20px;"><i class="ti ti-login"></i> Iniciar Sesión</button>
+        <p style="margin-top:15px;font-size:12px;color:#475569;">Demo: admin / admin123</p>
+    </div>
+</div>
+
+<!-- Sidebar Overlay -->
+<div class="overlay-sidebar" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<!-- Sidebar -->
+<nav class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h1><i class="ti ti-box-seam"></i> Inventario Pro</h1>
+    </div>
+    <div class="sidebar-nav">
+        <div class="nav-section">Principal</div>
+        <div class="nav-item active" onclick="navigateTo('dashboard', this)"><i class="ti ti-dashboard"></i> Dashboard</div>
+        <div class="nav-item" onclick="navigateTo('productos', this)"><i class="ti ti-package"></i> Productos</div>
+        <div class="nav-item" onclick="navigateTo('entradas', this)"><i class="ti ti-arrow-down-circle"></i> Entradas</div>
+        <div class="nav-item" onclick="navigateTo('salidas', this)"><i class="ti ti-arrow-up-circle"></i> Salidas</div>
+        <div class="nav-item" onclick="navigateTo('movimientos', this)"><i class="ti ti-history"></i> Historial</div>
+        <div class="nav-section">Gestión</div>
+        <div class="nav-item" onclick="navigateTo('proveedores', this)"><i class="ti ti-truck"></i> Proveedores</div>
+        <div class="nav-item" onclick="navigateTo('ubicaciones', this)"><i class="ti ti-map-pin"></i> Ubicaciones</div>
+        <div class="nav-item" onclick="navigateTo('lotes', this)"><i class="ti ti-barcode"></i> Lotes / Vencimientos</div>
+        <div class="nav-section">Análisis</div>
+        <div class="nav-item" onclick="navigateTo('reportes', this)"><i class="ti ti-chart-bar"></i> Reportes</div>
+        <div class="nav-item" onclick="navigateTo('alertas', this)"><i class="ti ti-bell"></i> Alertas <span class="badge" id="alertCount">0</span></div>
+        <div class="nav-item" onclick="navigateTo('auditoria', this)"><i class="ti ti-shield-check"></i> Auditoría</div>
+        <div class="nav-section">Sistema</div>
+        <div class="nav-item" onclick="navigateTo('usuarios', this)"><i class="ti ti-users"></i> Usuarios</div>
+        <div class="nav-item" onclick="navigateTo('importar', this)"><i class="ti ti-file-import"></i> Importar / Exportar</div>
+    </div>
+    <div class="sidebar-footer">
+        <div class="user-info">
+            <div class="user-avatar" id="userAvatarSidebar">A</div>
+            <div class="user-details">
+                <div class="user-name" id="userNameSidebar">Admin</div>
+                <div class="user-role" id="userRoleSidebar">Administrador</div>
+            </div>
+            <button class="btn-icon" onclick="handleLogout()" title="Cerrar sesión"><i class="ti ti-logout"></i></button>
+        </div>
+    </div>
+</nav>
+
+<!-- Main -->
+<div class="main-content">
+    <div class="topbar">
+        <div class="topbar-left">
+            <button class="menu-toggle" onclick="toggleSidebar()"><i class="ti ti-menu-2"></i></button>
+            <span class="page-title" id="pageTitle">Dashboard</span>
+        </div>
+        <div class="topbar-right">
+            <button class="topbar-btn" onclick="navigateTo('alertas', document.querySelector('.nav-item:nth-child(9)'))" title="Alertas">
+                <i class="ti ti-bell"></i>
+                <span class="notif-dot" id="notifDot" style="display:none;"></span>
+            </button>
+            <button class="topbar-btn" onclick="refreshAll()" title="Actualizar"><i class="ti ti-refresh"></i></button>
+        </div>
+    </div>
+
+    <div class="content-area">
+        <!-- Dashboard -->
+        <div class="section active" id="sec-dashboard">
+            <div class="stats-grid" id="dashStats"></div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>Stock por Categoría</h3>
+                    <canvas id="chartCategory"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Movimientos últimos 7 días</h3>
+                    <canvas id="chartMovements"></canvas>
+                </div>
+            </div>
+            <div style="margin-top:20px;">
+                <div class="table-container">
+                    <div class="table-header">
+                        <span class="table-title">⚠️ Alertas Recientes</span>
+                    </div>
+                    <div id="dashAlerts" style="padding:10px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Productos -->
+        <div class="section" id="sec-productos">
+            <div class="table-container">
+                <div class="table-header">
+                    <span class="table-title">Gestión de Productos</span>
+                    <div class="table-actions">
+                        <div class="search-wrapper">
+                            <i class="ti ti-search"></i>
+                            <input type="text" class="search-input" id="searchProducts" placeholder="Buscar producto..." oninput="renderProducts()">
+                        </div>
+                        <select id="filterCategory" onchange="renderProducts()" style="background:#334155;border:1px solid #475569;color:#e2e8f0;padding:8px 12px;border-radius:8px;font-size:13px;">
+                            <option value="">Todas las categorías</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="openProductModal()" id="btnAddProduct"><i class="ti ti-plus"></i> Nuevo Producto</button>
+                    </div>
+                </div>
+                <div class="table-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Código</th><th>Nombre</th><th>Categoría</th><th>Precio</th><th>Stock</th><th>Mín</th><th>Máx</th><th>Ubicación</th><th>Estado</th><th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Entradas -->
+        <div class="section" id="sec-entradas">
+            <div class="table-container">
+                <div class="table-header">
+                    <span class="table-title">Entradas de Inventario</span>
+                    <div class="table-actions">
+                        <button class="btn btn-success" onclick="openEntryModal()" id="btnAddEntry"><i class="ti ti-plus"></i> Registrar Entrada</button>
+                    </div>
+                </div>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Proveedor</th><th>Tipo</th><th>Motivo</th><th>Usuario</th><th>Acciones</th></tr></thead>
+                        <tbody id="entriesTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Salidas -->
+        <div class="section" id="sec-salidas">
+            <div class="table-container">
+                <div class="table-header">
+                    <span class="table-title">Salidas de Inventario</span>
+                    <div class="table-actions">
+                        <button class="btn btn-danger" onclick="openExitModal()" id="btnAddExit"><i class="ti ti-plus"></i> Registrar Salida</button>
+                    </div>
+                </div>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Destino/Motivo</th><th>Tipo</th><th>Usuario</th><th>Acciones</th></tr></thead>
+                        <tbody id="exitsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Historial -->
+        <div class="section" id="sec-movimientos">
+            <div class="filter-bar">
+                <input type="date" id="histDateFrom" onchange="renderMovements()">
+                <input type="date" id="histDateTo" onchange="renderMovements()">
+                <select id="histType" onchange="renderMovements()" style="background:#334155;border:1px solid #475569;color:#e2e8f0;padding:8px 12px;border-radius:8px;">
+                    <option value="">Todos los tipos</option>
+                    <option value="entrada">Entradas</option>
+                    <option value="salida">Salidas</option>
+                </select>
+                <select id="histProduct" onchange="renderMovements()" style="background:#334155;border:1px solid #475569;color:#e2e8f0;padding:8px 12px;border-radius:8px;">
+                    <option value="">Todos los productos</option>
+                </select>
+                <button class="btn btn-secondary" onclick="clearHistFilters()"><i class="ti ti-filter-off"></i> Limpiar</button>
+            </div>
+            <div class="table-container">
+                <div class="table-header"><span class="table-title">Historial de Movimientos</span></div>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>Fecha/Hora</th><th>Tipo</th><th>Producto</th><th>Cantidad</th><th>Detalle</th><th>Stock Resultante</th><th>Usuario</th></tr></thead>
+                        <tbody id="movementsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Proveedores -->
+        <div class="section" id="sec-proveedores">
+            <div class="table-container">
+                <div class="table-header">
+                    <span class="table-title">Gestión de Proveedores</span>
+                    <div class="table-actions">
+                        <button class="btn btn-primary" onclick="openSupplierModal()" id="btnAddSupplier"><i class="ti ti-plus"></i> Nuevo Proveedor</button>
+                    </div>
+                </div>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>ID</th><th>Nombre</th><th>Contacto</th><th>Teléfono</th><th>Dirección</th><th>Productos</th><th>Acciones</th></tr></thead>
+                        <tbody id="suppliersTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ubicaciones -->
+        <div class="section" id="sec-ubicaciones">
+            <div class="table-container">
+                <div class="table-header">
+                    <span class="table-title">Gestión de Ubicaciones</span>
+                    <div class="table-actions">
+                        <button class="btn btn-primary" onclick="openLocationModal()" id="btnAddLocation"><i class="ti ti-plus"></i> Nueva Ubicación</button>
+                    </div>
+                </div>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Capacidad</th><th>Productos</th><th>Acciones</th></tr></thead>
+                        <tbody id="locationsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lotes -->
+        <div class="section" id="sec-lotes">
+            <div class="table-container">
+                <div class="table-header">
+                    <span class="table-title">Control de Lotes y Vencimientos</span>
+                    <div class="table-actions">
+                        <button class="btn btn-primary" onclick="openLotModal()" id="btnAddLot"><i class="ti ti-plus"></i> Nuevo Lote</button>
+                    </div>
+                </div>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>N° Lote</th><th>Producto</th><th>Cantidad</th><th>Fecha Vencimiento</th><th>Estado</th><th>Acciones</th></tr></thead>
+                        <tbody id="lotsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reportes -->
+        <div class="section" id="sec-reportes">
+            <div class="tab-bar">
+                <button class="tab-btn active" onclick="switchReportTab('valorizado', this)">Inventario Valorizado</button>
+                <button class="tab-btn" onclick="switchReportTab('rotacion', this)">Rotación de Productos</button>
+                <button class="tab-btn" onclick="switchReportTab('periodo', this)">Movimientos por Período</button>
+            </div>
+            <div class="tab-content active" id="report-valorizado">
+                <div style="display:flex;gap:10px;margin-bottom:20px;">
+                    <button class="btn btn-primary" onclick="generateValorizedReport()"><i class="ti ti-refresh"></i> Generar Reporte</button>
+                    <button class="btn btn-secondary" onclick="exportValorizedCSV()"><i class="ti ti-download"></i> Exportar CSV</button>
+                </div>
+                <div class="table-container">
+                    <div class="table-header"><span class="table-title">Inventario Valorizado</span></div>
+                    <div class="table-scroll">
+                        <table>
+                            <thead><tr><th>Producto</th><th>Stock</th><th>Precio Unit.</th><th>Valor Total</th><th>% del Inventario</th></tr></thead>
+                            <tbody id="valorizedBody"></tbody>
+                            <tfoot id="valorizedFoot"></tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-content" id="report-rotacion">
+                <div class="chart-grid">
+                    <div class="chart-card">
+                        <h3>Productos Más Rotados (Top 10)</h3>
+                        <canvas id="chartTopRotated"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Productos Menos Rotados (Bottom 10)</h3>
+                        <canvas id="chartLowRotated"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-content" id="report-periodo">
+                <div style="display:flex;gap:10px;margin-bottom:20px;align-items:center;">
+                    <label style="font-size:13px;color:#94a3b8;">Período:</label>
+                    <select id="reportPeriod" onchange="generatePeriodReport()" style="background:#334155;border:1px solid #475569;color:#e2e8f0;padding:8px 12px;border-radius:8px;">
+                        <option value="7">Últimos 7 días</option>
+                        <option value="30" selected>Últimos 30 días</option>
+                        <option value="90">Últimos 90 días</option>
+                    </select>
+                </div>
+                <div class="chart-card">
+                    <h3>Movimientos en el Período</h3>
+                    <canvas id="chartPeriod"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alertas -->
+        <div class="section" id="sec-alertas">
+            <div class="filter-bar">
+                <select id="alertFilter" onchange="renderAlerts()" style="background:#334155;border:1px solid #475569;color:#e2e8f0;padding:8px 12px;border-radius:8px;">
+                    <option value="">Todas las alertas</option>
+                    <option value="stock_bajo">Stock bajo</option>
+                    <option value="stock_alto">Stock alto</option>
+                    <option value="vencimiento">Vencimiento próximo</option>
+                    <option value="vencido">Producto vencido</option>
+                </select>
+                <button class="btn btn-secondary" onclick="dismissAllAlerts()"><i class="ti ti-check-all"></i> Descartar todas</button>
+            </div>
+            <div id="alertsList"></div>
+        </div>
+
+        <!-- Auditoría -->
+        <div class="section" id="sec-auditoria">
+            <div class="filter-bar">
+                <input type="date" id="auditDateFrom" onchange="renderAudit()">
+                <input type="date" id="auditDateTo" onchange="renderAudit()">
+                <select id="auditAction" onchange="renderAudit()" style="background:#334155;border:1px solid #475569;color:#e2e8f0;padding:8px 12px;border-radius:8px;">
+                    <option value="">Todas las acciones</option>
+                    <option value="create">Creaciones</option>
+                    <option value="update">Actualizaciones</option>
+                    <option value="delete">Eliminaciones</option>
+                    <option value="login">Inicios de sesión</option>
+                </select>
+            </div>
+            <div class="table-container">
+                <div class="table-header"><span class="table-title">Registro de Auditoría</span></div>
+                <div style="padding:20px;" id="auditLogList"></div>
+            </div>
+        </div>
+
+        <!-- Usuarios -->
+        <div class="section" id="sec-usuarios">
+            <div class="table-container">
+                <div class="table-header">
+                    <span class="table-title">Gestión de Usuarios</span>
+                    <div class="table-actions">
+                        <button class="btn btn-primary" onclick="openUserModal()" id="btnAddUser"><i class="ti ti-plus"></i> Nuevo Usuario</button>
+                    </div>
+                </div>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Último Acceso</th><th>Acciones</th></tr></thead>
+                        <tbody id="usersTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Importar/Exportar -->
+        <div class="section" id="sec-importar">
+            <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+                <div class="stat-card" style="cursor:pointer;" onclick="document.getElementById('csvFileInput').click()">
+                    <div class="stat-icon blue"><i class="ti ti-file-upload"></i></div>
+                    <div class="stat-value" style="font-size:16px;">Importar CSV</div>
+                    <div class="stat-label">Cargar productos desde archivo CSV</div>
+                    <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="importCSV(event)">
+                </div>
+                <div class="stat-card" style="cursor:pointer;" onclick="exportProductsCSV()">
+                    <div class="stat-icon green"><i class="ti ti-file-download"></i></div>
+                    <div class="stat-value" style="font-size:16px;">Exportar Productos</div>
+                    <div class="stat-label">Descargar inventario completo en CSV</div>
+                </div>
+                <div class="stat-card" style="cursor:pointer;" onclick="exportMovementsCSV()">
+                    <div class="stat-icon yellow"><i class="ti ti-file-export"></i></div>
+                    <div class="stat-value" style="font-size:16px;">Exportar Movimientos</div>
+                    <div class="stat-label">Descargar historial de movimientos en CSV</div>
+                </div>
+                <div class="stat-card" style="cursor:pointer;" onclick="exportBackupJSON()">
+                    <div class="stat-icon purple"><i class="ti ti-database-export"></i></div>
+                    <div class="stat-value" style="font-size:16px;">Backup Completo</div>
+                    <div class="stat-label">Exportar toda la base de datos en JSON</div>
+                </div>
+            </div>
+            <div style="margin-top:20px;">
+                <div class="stat-card">
+                    <div class="stat-value" style="font-size:16px;margin-bottom:10px;">📋 Formato CSV esperado</div>
+                    <div class="stat-label" style="font-family:monospace;background:#0f172a;padding:15px;border-radius:8px;font-size:12px;">
+                        codigo,nombre,categoria,precio,stock_min,stock_max,ubicacion<br>
+                        PROD001,Cable USB,Electrónica,15.99,10,100,Almacén A<br>
+                        PROD002,Monitor 24",Electrónica,299.99,5,50,Almacén B
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<div class="modal-overlay" id="modalProduct">
+    <div class="modal">
+        <div class="modal-header"><h2 id="modalProductTitle">Nuevo Producto</h2><button class="modal-close" onclick="closeModal('modalProduct')">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="prodEditId">
+            <div class="form-grid">
+                <div class="form-group"><label>Código</label><input type="text" id="prodCode" placeholder="PROD001"></div>
+                <div class="form-group"><label>Nombre *</label><input type="text" id="prodName" placeholder="Nombre del producto"></div>
+                <div class="form-group"><label>Categoría</label><input type="text" id="prodCategory" placeholder="Electrónica" list="categoryList"><datalist id="categoryList"></datalist></div>
+                <div class="form-group"><label>Precio ($)</label><input type="number" id="prodPrice" step="0.01" placeholder="0.00"></div>
+                <div class="form-group"><label>Stock Actual</label><input type="number" id="prodStock" placeholder="0"></div>
+                <div class="form-group"><label>Stock Mínimo</label><input type="number" id="prodMinStock" placeholder="10"></div>
+                <div class="form-group"><label>Stock Máximo</label><input type="number" id="prodMaxStock" placeholder="100"></div>
+                <div class="form-group"><label>Ubicación</label><select id="prodLocation"><option value="">Sin asignar</option></select></div>
+                <div class="form-group full"><label>Descripción</label><textarea id="prodDesc" placeholder="Descripción del producto..."></textarea></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modalProduct')">Cancelar</button>
+            <button class="btn btn-primary" onclick="saveProduct()"><i class="ti ti-device-floppy"></i> Guardar</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalEntry">
+    <div class="modal">
+        <div class="modal-header"><h2>Registrar Entrada</h2><button class="modal-close" onclick="closeModal('modalEntry')">&times;</button></div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group"><label>Producto *</label><select id="entryProduct"></select></div>
+                <div class="form-group"><label>Cantidad *</label><input type="number" id="entryQty" min="1" placeholder="0"></div>
+                <div class="form-group"><label>Tipo</label><select id="entryType"><option value="compra">Compra</option><option value="devolucion">Devolución</option><option value="ajuste_pos">Ajuste Positivo</option></select></div>
+                <div class="form-group"><label>Proveedor</label><select id="entrySupplier"><option value="">N/A</option></select></div>
+                <div class="form-group"><label>Fecha</label><input type="date" id="entryDate"></div>
+                <div class="form-group"><label>N° Lote</label><select id="entryLot"><option value="">Sin lote</option></select></div>
+                <div class="form-group full"><label>Motivo / Observación</label><textarea id="entryReason" placeholder="Motivo de la entrada..."></textarea></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modalEntry')">Cancelar</button>
+            <button class="btn btn-success" onclick="saveEntry()"><i class="ti ti-check"></i> Registrar Entrada</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalExit">
+    <div class="modal">
+        <div class="modal-header"><h2>Registrar Salida</h2><button class="modal-close" onclick="closeModal('modalExit')">&times;</button></div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group"><label>Producto *</label><select id="exitProduct"></select></div>
+                <div class="form-group"><label>Cantidad *</label><input type="number" id="exitQty" min="1" placeholder="0"></div>
+                <div class="form-group"><label>Tipo</label><select id="exitType"><option value="venta">Venta</option><option value="baja">Baja por daño</option><option value="ajuste_neg">Ajuste Negativo</option></select></div>
+                <div class="form-group"><label>Destino / Motivo</label><input type="text" id="exitReason" placeholder="Cliente, daño, etc."></div>
+                <div class="form-group"><label>Fecha</label><input type="date" id="exitDate"></div>
+                <div class="form-group"><label>N° Lote (FIFO)</label><select id="exitLot"><option value="">Automático</option></select></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modalExit')">Cancelar</button>
+            <button class="btn btn-danger" onclick="saveExit()"><i class="ti ti-check"></i> Registrar Salida</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalSupplier">
+    <div class="modal">
+        <div class="modal-header"><h2 id="modalSupplierTitle">Nuevo Proveedor</h2><button class="modal-close" onclick="closeModal('modalSupplier')">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="supEditId">
+            <div class="form-grid">
+                <div class="form-group"><label>Nombre *</label><input type="text" id="supName" placeholder="Nombre del proveedor"></div>
+                <div class="form-group"><label>Contacto</label><input type="text" id="supContact" placeholder="Persona de contacto"></div>
+                <div class="form-group"><label>Teléfono</label><input type="text" id="supPhone" placeholder="+1 234 567 890"></div>
+                <div class="form-group"><label>Email</label><input type="email" id="supEmail" placeholder="email@ejemplo.com"></div>
+                <div class="form-group full"><label>Dirección</label><textarea id="supAddress" placeholder="Dirección completa..."></textarea></div>
+                <div class="form-group full"><label>Productos que suministra</label><input type="text" id="supProducts" placeholder="Producto1, Producto2..."></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modalSupplier')">Cancelar</button>
+            <button class="btn btn-primary" onclick="saveSupplier()"><i class="ti ti-device-floppy"></i> Guardar</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalLocation">
+    <div class="modal">
+        <div class="modal-header"><h2 id="modalLocationTitle">Nueva Ubicación</h2><button class="modal-close" onclick="closeModal('modalLocation')">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="locEditId">
+            <div class="form-grid">
+                <div class="form-group"><label>Código *</label><input type="text" id="locCode" placeholder="ALM-A"></div>
+                <div class="form-group"><label>Nombre *</label><input type="text" id="locName" placeholder="Almacén Principal"></div>
+                <div class="form-group"><label>Tipo</label><select id="locType"><option value="almacen">Almacén</option><option value="estante">Estante</option><option value="rack">Rack</option><option value="zona">Zona</option></select></div>
+                <div class="form-group"><label>Capacidad</label><input type="number" id="locCapacity" placeholder="1000"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modalLocation')">Cancelar</button>
+            <button class="btn btn-primary" onclick="saveLocation()"><i class="ti ti-device-floppy"></i> Guardar</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalLot">
+    <div class="modal">
+        <div class="modal-header"><h2>Nuevo Lote</h2><button class="modal-close" onclick="closeModal('modalLot')">&times;</button></div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group"><label>Producto *</label><select id="lotProduct"></select></div>
+                <div class="form-group"><label>N° Lote *</label><input type="text" id="lotNumber" placeholder="LOT-2026-001"></div>
+                <div class="form-group"><label>Cantidad</label><input type="number" id="lotQty" placeholder="0"></div>
+                <div class="form-group"><label>Fecha de Vencimiento</label><input type="date" id="lotExpiry"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modalLot')">Cancelar</button>
+            <button class="btn btn-primary" onclick="saveLot()"><i class="ti ti-device-floppy"></i> Guardar</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalUser">
+    <div class="modal">
+        <div class="modal-header"><h2 id="modalUserTitle">Nuevo Usuario</h2><button class="modal-close" onclick="closeModal('modalUser')">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="userEditId">
+            <div class="form-grid">
+                <div class="form-group"><label>Usuario *</label><input type="text" id="userUsername" placeholder="usuario123"></div>
+                <div class="form-group"><label>Nombre Completo</label><input type="text" id="userFullname" placeholder="Juan Pérez"></div>
+                <div class="form-group"><label>Contraseña</label><input type="password" id="userPassword" placeholder="******"></div>
+                <div class="form-group"><label>Rol</label><select id="userRole"><option value="admin">Administrador</option><option value="almacenista">Almacenista</option><option value="consulta">Consulta</option></select></div>
+                <div class="form-group"><label>Estado</label><select id="userStatus"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modalUser')">Cancelar</button>
+            <button class="btn btn-primary" onclick="saveUser()"><i class="ti ti-device-floppy"></i> Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ==================== DATA STORE ====================
+const DB_KEYS = { products: 'inv_products', entries: 'inv_entries', exits: 'inv_exits', suppliers: 'inv_suppliers', locations: 'inv_locations', lots: 'inv_lots', users: 'inv_users', audit: 'inv_audit', currentUser: 'inv_currentUser' };
+
+function loadData(key) { try { return JSON.parse(localStorage.getItem(DB_KEYS[key])) || []; } catch { return []; } }
+function saveData(key, data) { localStorage.setItem(DB_KEYS[key], JSON.stringify(data)); }
+
+let products = loadData('products');
+let entries = loadData('entries');
+let exits = loadData('exits');
+let suppliers = loadData('suppliers');
+let locations = loadData('locations');
+let lots = loadData('lots');
+let users = loadData('users');
+let auditLog = loadData('audit');
+let currentUser = JSON.parse(localStorage.getItem(DB_KEYS.currentUser) || 'null');
+
+// Charts instances
+let chartCategory = null, chartMovements = null, chartTopRotated = null, chartLowRotated = null, chartPeriod = null;
+
+// ==================== INIT ====================
+function initApp() {
+    if (!currentUser) {
+        document.getElementById('loginScreen').classList.add('active');
+        return;
+    }
+    document.getElementById('loginScreen').classList.remove('active');
+    updateUserInfo();
+    seedSampleData();
+    renderAll();
+    checkAlerts();
+}
+
+function seedSampleData() {
+    if (products.length === 0) {
+        products = [
+            { id: 1, code: 'PROD001', name: 'Cable USB-C', category: 'Electrónica', price: 12.99, stock: 150, minStock: 20, maxStock: 500, location: 'Almacén A', desc: 'Cable USB-C de 2 metros' },
+            { id: 2, code: 'PROD002', name: 'Monitor 24"', category: 'Electrónica', price: 299.99, stock: 8, minStock: 10, maxStock: 50, location: 'Almacén B', desc: 'Monitor LED Full HD' },
+            { id: 3, code: 'PROD003', name: 'Teclado Mecánico', category: 'Periféricos', price: 89.99, stock: 45, minStock: 15, maxStock: 100, location: 'Estante 3', desc: 'Teclado mecánico RGB' },
+            { id: 4, code: 'PROD004', name: 'Mouse Inalámbrico', category: 'Periféricos', price: 35.50, stock: 200, minStock: 30, maxStock: 300, location: 'Almacén A', desc: 'Mouse ergonómico inalámbrico' },
+            { id: 5, code: 'PROD005', name: 'Papel A4 (resma)', category: 'Oficina', price: 8.99, stock: 5, minStock: 50, maxStock: 500, location: 'Almacén C', desc: 'Resma de 500 hojas' },
+            { id: 6, code: 'PROD006', name: 'Tóner Negro', category: 'Insumos', price: 65.00, stock: 12, minStock: 10, maxStock: 40, location: 'Rack 2', desc: 'Cartucho de tóner compatible' },
+            { id: 7, code: 'PROD007', name: 'Silla Ergonómica', category: 'Mobiliario', price: 450.00, stock: 3, minStock: 5, maxStock: 20, location: 'Almacén D', desc: 'Silla de oficina ergonómica' },
+            { id: 8, code: 'PROD008', name: 'Disco SSD 1TB', category: 'Electrónica', price: 120.00, stock: 25, minStock: 10, maxStock: 80, location: 'Almacén B', desc: 'SSD NVMe 1TB' },
+        ];
+        saveData('products', products);
+    }
+    if (suppliers.length === 0) {
+        suppliers = [
+            { id: 1, name: 'TechDist S.A.', contact: 'Carlos López', phone: '+34 912 345 678', email: 'ventas@techdist.com', address: 'Madrid, España', products: 'Cables, Monitores, SSD' },
+            { id: 2, name: 'OfficePro', contact: 'María García', phone: '+34 913 456 789', email: 'info@officepro.com', address: 'Barcelona, España', products: 'Papel, Tóner, Mobiliario' },
+            { id: 3, name: 'PeriféricosPlus', contact: 'Ana Martínez', phone: '+34 914 567 890', email: 'ana@perifericosplus.com', address: 'Valencia, España', products: 'Teclados, Mouse' },
+        ];
+        saveData('suppliers', suppliers);
+    }
+    if (locations.length === 0) {
+        locations = [
+            { id: 1, code: 'ALM-A', name: 'Almacén A', type: 'almacen', capacity: 1000 },
+            { id: 2, code: 'ALM-B', name: 'Almacén B', type: 'almacen', capacity: 800 },
+            { id: 3, code: 'ALM-C', name: 'Almacén C', type: 'almacen', capacity: 500 },
+            { id: 4, code: 'ALM-D', name: 'Almacén D', type: 'almacen', capacity: 300 },
+            { id: 5, code: 'EST-3', name: 'Estante 3', type: 'estante', capacity: 200 },
+            { id: 6, code: 'RCK-2', name: 'Rack 2', type: 'rack', capacity: 150 },
+        ];
+        saveData('locations', locations);
+    }
+    if (users.length === 0) {
+        users = [
+            { id: 1, username: 'admin', fullname: 'Administrador', role: 'admin', status: 'activo', lastAccess: new Date().toISOString(), password: 'admin123' },
+            { id: 2, username: 'almacen1', fullname: 'Juan Almacenista', role: 'almacenista', status: 'activo', lastAccess: new Date(Date.now() - 86400000).toISOString(), password: '123456' },
+            { id: 3, username: 'consulta1', fullname: 'Ana Consulta', role: 'consulta', status: 'activo', lastAccess: new Date(Date.now() - 172800000).toISOString(), password: '123456' },
+        ];
+        saveData('users', users);
+    }
+    if (lots.length === 0) {
+        lots = [
+            { id: 1, productId: 5, lotNumber: 'LOT-2026-001', qty: 500, expiry: '2027-06-15' },
+            { id: 2, productId: 6, lotNumber: 'LOT-2026-002', qty: 40, expiry: '2026-12-01' },
+            { id: 3, productId: 1, lotNumber: 'LOT-2026-003', qty: 100, expiry: '2028-01-01' },
+            { id: 4, productId: 5, lotNumber: 'LOT-2025-OLD', qty: 100, expiry: '2026-04-01' },
+        ];
+        saveData('lots', lots);
+    }
+    if (entries.length === 0) {
+        entries = [
+            { id: 1, productId: 1, qty: 200, type: 'compra', supplier: 'TechDist S.A.', date: '2026-04-20', reason: 'Compra mensual', lotId: 3, user: 'admin' },
+            { id: 2, productId: 5, qty: 500, type: 'compra', supplier: 'OfficePro', date: '2026-04-18', reason: 'Reabastecimiento', lotId: 1, user: 'almacen1' },
+        ];
+        saveData('entries', entries);
+    }
+    if (exits.length === 0) {
+        exits = [
+            { id: 1, productId: 1, qty: 50, type: 'venta', reason: 'Pedido #1234', date: '2026-04-22', user: 'almacen1' },
+        ];
+        saveData('exits', exits);
+    }
+}
+
+// ==================== AUTH ====================
+function handleLogin() {
+    const username = document.getElementById('loginUser').value.trim();
+    const password = document.getElementById('loginPass').value;
+    const role = document.getElementById('loginRole').value;
+    const user = users.find(u => u.username === username && u.password === password);
+    if (user) {
+    console.log('Existe usuario');
+    
+        if (user.status === 'inactivo') { showToast('Usuario desactivado', 'error'); return; }
+        currentUser = { ...user };
+        saveData('currentUser', currentUser);
+        user.lastAccess = new Date().toISOString();
+        saveData('users', users);
+        addAudit('login', `Inicio de sesión: ${user.username}`);
+        document.getElementById('loginScreen').classList.remove('active');
+        updateUserInfo();
+        renderAll();
+        checkAlerts();
+        showToast(`Bienvenido, ${user.fullname}`, 'success');
+    } else {
+        showToast('Credenciales incorrectas', 'error');
+    }
+}
+
+function handleLogout() {
+    addAudit('login', `Cierre de sesión: ${currentUser?.username}`);
+    currentUser = null;
+    localStorage.removeItem(DB_KEYS.currentUser);
+    document.getElementById('loginScreen').classList.add('active');
+}
+
+function updateUserInfo() {
+    if (!currentUser) return;
+    const initials = currentUser.fullname.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    document.getElementById('userAvatarSidebar').textContent = initials;
+    document.getElementById('userNameSidebar').textContent = currentUser.fullname;
+    document.getElementById('userRoleSidebar').textContent = currentUser.role === 'admin' ? 'Administrador' : currentUser.role === 'almacenista' ? 'Almacenista' : 'Consulta';
+    applyPermissions();
+}
+
+function applyPermissions() {
+    if (!currentUser) return;
+    const role = currentUser.role;
+    const readOnly = role === 'consulta';
+    const noAdmin = role !== 'admin';
+    document.getElementById('btnAddProduct') && (document.getElementById('btnAddProduct').style.display = readOnly ? 'none' : '');
+    document.getElementById('btnAddEntry') && (document.getElementById('btnAddEntry').style.display = readOnly ? 'none' : '');
+    document.getElementById('btnAddExit') && (document.getElementById('btnAddExit').style.display = readOnly ? 'none' : '');
+    document.getElementById('btnAddSupplier') && (document.getElementById('btnAddSupplier').style.display = noAdmin ? 'none' : '');
+    document.getElementById('btnAddLocation') && (document.getElementById('btnAddLocation').style.display = noAdmin ? 'none' : '');
+    document.getElementById('btnAddLot') && (document.getElementById('btnAddLot').style.display = readOnly ? 'none' : '');
+    document.getElementById('btnAddUser') && (document.getElementById('btnAddUser').style.display = noAdmin ? 'none' : '');
+    // Hide admin-only nav items
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+        const text = item.textContent.trim();
+        if ((text.includes('Usuarios') || text.includes('Importar')) && noAdmin) {
+            item.style.display = 'none';
+        }
+    });
+}
+
+// ==================== AUDIT ====================
+function addAudit(action, detail) {
+    auditLog.unshift({
+        id: Date.now(),
+        action,
+        detail,
+        user: currentUser?.username || 'sistema',
+        timestamp: new Date().toISOString()
+    });
+    if (auditLog.length > 1000) auditLog = auditLog.slice(0, 1000);
+    saveData('audit', auditLog);
+}
+
+// ==================== NAVIGATION ====================
+function navigateTo(section, el) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('sec-' + section)?.classList.add('active');
+    if (el) el.classList.add('active');
+    const titles = { dashboard:'Dashboard', productos:'Productos', entradas:'Entradas', salidas:'Salidas', movimientos:'Historial de Movimientos', proveedores:'Proveedores', ubicaciones:'Ubicaciones', lotes:'Lotes y Vencimientos', reportes:'Reportes', alertas:'Alertas', auditoria:'Auditoría', usuarios:'Usuarios', importar:'Importar / Exportar' };
+    document.getElementById('pageTitle').textContent = titles[section] || section;
+    // Close sidebar on mobile
+    if (window.innerWidth <= 768) toggleSidebar();
+}
+
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('active');
+}
+
+// ==================== MODALS ====================
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// ==================== TOAST ====================
+function showToast(msg, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const icons = { success: 'ti-check', error: 'ti-alert-circle', info: 'ti-info-circle' };
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<i class="ti ${icons[type]}"></i><span>${msg}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+// ==================== PRODUCTS ====================
+function renderProducts() {
+    const search = (document.getElementById('searchProducts')?.value || '').toLowerCase();
+    const catFilter = document.getElementById('filterCategory')?.value || '';
+    let filtered = products.filter(p => {
+        const matchSearch = !search || p.name.toLowerCase().includes(search) || p.code.toLowerCase().includes(search) || (p.category||'').toLowerCase().includes(search);
+        const matchCat = !catFilter || p.category === catFilter;
+        return matchSearch && matchCat;
+    });
+    const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+    const catSelect = document.getElementById('filterCategory');
+    if (catSelect) {
+        const current = catSelect.value;
+        catSelect.innerHTML = '<option value="">Todas las categorías</option>' + categories.map(c => `<option value="${c}" ${c===current?'selected':''}>${c}</option>`).join('');
+    }
+    const tbody = document.getElementById('productsTableBody');
+    if (!tbody) return;
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><i class="ti ti-package-off"></i><h3>No se encontraron productos</h3><p>Agrega un nuevo producto o ajusta los filtros</p></div></td></tr>';
+        return;
+    }
+    tbody.innerHTML = filtered.map(p => {
+        let stockClass = 'stock-ok', stockLabel = 'Normal';
+        if (p.stock <= (p.minStock || 0)) { stockClass = 'stock-low'; stockLabel = 'Crítico'; }
+        else if (p.stock <= (p.minStock || 0) * 1.5) { stockClass = 'stock-warn'; stockLabel = 'Bajo'; }
+        else if (p.stock >= (p.maxStock || Infinity)) { stockClass = 'stock-warn'; stockLabel = 'Exceso'; }
+        return `<tr>
+            <td><strong>${p.code}</strong></td><td>${p.name}</td><td><span class="tag tag-blue">${p.category || '-'}</span></td>
+            <td>$${(p.price||0).toFixed(2)}</td><td class="${stockClass}">${p.stock}</td>
+            <td>${p.minStock||0}</td><td>${p.maxStock||'∞'}</td><td>${p.location||'-'}</td>
+            <td><span class="tag ${stockClass === 'stock-low' ? 'tag-red' : stockClass === 'stock-warn' ? 'tag-yellow' : 'tag-green'}">${stockLabel}</span></td>
+            <td>
+                <button class="btn-icon" onclick="editProduct(${p.id})" title="Editar"><i class="ti ti-edit"></i></button>
+                <button class="btn-icon danger" onclick="deleteProduct(${p.id})" title="Eliminar"><i class="ti ti-trash"></i></button>
+            </td></tr>`;
+    }).join('');
+}
+
+function openProductModal(id) {
+    document.getElementById('prodEditId').value = '';
+    document.getElementById('prodCode').value = '';
+    document.getElementById('prodName').value = '';
+    document.getElementById('prodCategory').value = '';
+    document.getElementById('prodPrice').value = '';
+    document.getElementById('prodStock').value = '';
+    document.getElementById('prodMinStock').value = '';
+    document.getElementById('prodMaxStock').value = '';
+    document.getElementById('prodDesc').value = '';
+    document.getElementById('modalProductTitle').textContent = 'Nuevo Producto';
+    // Populate location select
+    const locSelect = document.getElementById('prodLocation');
+    locSelect.innerHTML = '<option value="">Sin asignar</option>' + locations.map(l => `<option value="${l.name}">${l.code} - ${l.name}</option>`).join('');
+    openModal('modalProduct');
+}
+
+function editProduct(id) {
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('prodEditId').value = id;
+    document.getElementById('prodCode').value = p.code;
+    document.getElementById('prodName').value = p.name;
+    document.getElementById('prodCategory').value = p.category || '';
+    document.getElementById('prodPrice').value = p.price;
+    document.getElementById('prodStock').value = p.stock;
+    document.getElementById('prodMinStock').value = p.minStock || '';
+    document.getElementById('prodMaxStock').value = p.maxStock || '';
+    document.getElementById('prodDesc').value = p.desc || '';
+    document.getElementById('modalProductTitle').textContent = 'Editar Producto';
+    const locSelect = document.getElementById('prodLocation');
+    locSelect.innerHTML = '<option value="">Sin asignar</option>' + locations.map(l => `<option value="${l.name}" ${p.location===l.name?'selected':''}>${l.code} - ${l.name}</option>`).join('');
+    openModal('modalProduct');
+}
+
+function saveProduct() {
+    const name = document.getElementById('prodName').value.trim();
+    if (!name) { showToast('El nombre es obligatorio', 'error'); return; }
+    const editId = document.getElementById('prodEditId').value;
+    const data = {
+        code: document.getElementById('prodCode').value.trim() || 'PROD' + Date.now(),
+        name,
+        category: document.getElementById('prodCategory').value.trim(),
+        price: parseFloat(document.getElementById('prodPrice').value) || 0,
+        stock: parseInt(document.getElementById('prodStock').value) || 0,
+        minStock: parseInt(document.getElementById('prodMinStock').value) || 0,
+        maxStock: parseInt(document.getElementById('prodMaxStock').value) || 0,
+        location: document.getElementById('prodLocation').value,
+        desc: document.getElementById('prodDesc').value.trim()
+    };
+    if (editId) {
+        const idx = products.findIndex(p => p.id == editId);
+        if (idx !== -1) { products[idx] = { ...products[idx], ...data }; addAudit('update', `Producto actualizado: ${data.name}`); showToast('Producto actualizado', 'success'); }
+    } else {
+        data.id = Date.now();
+        products.push(data);
+        addAudit('create', `Producto creado: ${data.name} (${data.code})`);
+        showToast('Producto registrado', 'success');
+    }
+    saveData('products', products);
+    closeModal('modalProduct');
+    renderAll();
+}
+
+function deleteProduct(id) {
+    if (!confirm('¿Eliminar este producto?')) return;
+    const p = products.find(x => x.id === id);
+    products = products.filter(x => x.id !== id);
+    saveData('products', products);
+    addAudit('delete', `Producto eliminado: ${p?.name}`);
+    showToast('Producto eliminado', 'info');
+    renderAll();
+}
+
+// ==================== ENTRIES ====================
+function openEntryModal() {
+    document.getElementById('entryQty').value = '';
+    document.getElementById('entryReason').value = '';
+    document.getElementById('entryDate').value = new Date().toISOString().split('T')[0];
+    const prodSelect = document.getElementById('entryProduct');
+    prodSelect.innerHTML = '<option value="">Seleccionar producto</option>' + products.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('');
+    const supSelect = document.getElementById('entrySupplier');
+    supSelect.innerHTML = '<option value="">N/A</option>' + suppliers.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+    const lotSelect = document.getElementById('entryLot');
+    lotSelect.innerHTML = '<option value="">Sin lote</option>' + lots.map(l => `<option value="${l.id}">${l.lotNumber} (Prod: ${getProductName(l.productId)})</option>`).join('');
+    openModal('modalEntry');
+}
+
+function saveEntry() {
+    const prodId = parseInt(document.getElementById('entryProduct').value);
+    const qty = parseInt(document.getElementById('entryQty').value);
+    if (!prodId || !qty || qty <= 0) { showToast('Completa producto y cantidad', 'error'); return; }
+    const product = products.find(p => p.id === prodId);
+    if (!product) { showToast('Producto no encontrado', 'error'); return; }
+    product.stock += qty;
+    saveData('products', products);
+    const entry = {
+        id: Date.now(),
+        productId: prodId,
+        qty,
+        type: document.getElementById('entryType').value,
+        supplier: document.getElementById('entrySupplier').value,
+        date: document.getElementById('entryDate').value || new Date().toISOString().split('T')[0],
+        reason: document.getElementById('entryReason').value.trim(),
+        lotId: parseInt(document.getElementById('entryLot').value) || null,
+        user: currentUser?.username || 'admin'
+    };
+    entries.unshift(entry);
+    saveData('entries', entries);
+    // Update lot if selected
+    if (entry.lotId) {
+        const lot = lots.find(l => l.id === entry.lotId);
+        if (lot) lot.qty += qty;
+        saveData('lots', lots);
+    }
+    addAudit('create', `Entrada: ${qty}x ${product.name} (${entry.type})`);
+    showToast(`Entrada registrada: ${qty} unidades de ${product.name}`, 'success');
+    closeModal('modalEntry');
+    renderAll();
+}
+
+function renderEntries() {
+    const tbody = document.getElementById('entriesTableBody');
+    if (!tbody) return;
+    if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><i class="ti ti-arrow-down-circle"></i><h3>Sin entradas registradas</h3></div></td></tr>';
+        return;
+    }
+    tbody.innerHTML = entries.map(e => `<tr>
+        <td>${formatDate(e.date)}</td><td>${getProductName(e.productId)}</td><td class="stock-ok">+${e.qty}</td>
+        <td>${e.supplier || '-'}</td><td><span class="tag tag-green">${e.type}</span></td>
+        <td>${e.reason || '-'}</td><td>${e.user}</td>
+        <td><button class="btn-icon danger" onclick="deleteEntry(${e.id})"><i class="ti ti-trash"></i></button></td>
+    </tr>`).join('');
+}
+
+function deleteEntry(id) {
+    if (!confirm('¿Eliminar esta entrada? (El stock NO se revertirá)')) return;
+    const entry = entries.find(e => e.id === id);
+    if (entry) {
+        const product = products.find(p => p.id === entry.productId);
+        if (product) { product.stock = Math.max(0, product.stock - entry.qty); saveData('products', products); }
+    }
+    entries = entries.filter(e => e.id !== id);
+    saveData('entries', entries);
+    showToast('Entrada eliminada', 'info');
+    renderAll();
+}
+
+// ==================== EXITS ====================
+function openExitModal() {
+    document.getElementById('exitQty').value = '';
+    document.getElementById('exitReason').value = '';
+    document.getElementById('exitDate').value = new Date().toISOString().split('T')[0];
+    const prodSelect = document.getElementById('exitProduct');
+    prodSelect.innerHTML = '<option value="">Seleccionar producto</option>' + products.map(p => `<option value="${p.id}">${p.code} - ${p.name} (Stock: ${p.stock})</option>`).join('');
+    const lotSelect = document.getElementById('exitLot');
+    lotSelect.innerHTML = '<option value="">Automático</option>' + lots.filter(l => {
+        const prod = products.find(p => p.id === l.productId);
+        return prod && prod.id === parseInt(document.getElementById('exitProduct')?.value || 0);
+    }).map(l => `<option value="${l.id}">${l.lotNumber} (${l.qty} uds.)</option>`).join('');
+    openModal('modalExit');
+}
+
+function saveExit() {
+    const prodId = parseInt(document.getElementById('exitProduct').value);
+    const qty = parseInt(document.getElementById('exitQty').value);
+    if (!prodId || !qty || qty <= 0) { showToast('Completa producto y cantidad', 'error'); return; }
+    const product = products.find(p => p.id === prodId);
+    if (!product) { showToast('Producto no encontrado', 'error'); return; }
+    if (qty > product.stock) { showToast(`Stock insuficiente. Disponible: ${product.stock}`, 'error'); return; }
+    product.stock -= qty;
+    saveData('products', products);
+    const exit = {
+        id: Date.now(),
+        productId: prodId,
+        qty,
+        type: document.getElementById('exitType').value,
+        reason: document.getElementById('exitReason').value.trim(),
+        date: document.getElementById('exitDate').value || new Date().toISOString().split('T')[0],
+        user: currentUser?.username || 'admin'
+    };
+    exits.unshift(exit);
+    saveData('exits', exits);
+    // Update lot if selected
+    const lotId = parseInt(document.getElementById('exitLot').value);
+    if (lotId) {
+        const lot = lots.find(l => l.id === lotId);
+        if (lot) lot.qty = Math.max(0, lot.qty - qty);
+        saveData('lots', lots);
+    }
+    addAudit('create', `Salida: ${qty}x ${product.name} (${exit.type})`);
+    showToast(`Salida registrada: ${qty} unidades de ${product.name}`, 'success');
+    closeModal('modalExit');
+    renderAll();
+}
+
+function renderExits() {
+    const tbody = document.getElementById('exitsTableBody');
+    if (!tbody) return;
+    if (exits.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="ti ti-arrow-up-circle"></i><h3>Sin salidas registradas</h3></div></td></tr>';
+        return;
+    }
+    tbody.innerHTML = exits.map(e => `<tr>
+        <td>${formatDate(e.date)}</td><td>${getProductName(e.productId)}</td><td class="stock-low">-${e.qty}</td>
+        <td>${e.reason || '-'}</td><td><span class="tag tag-red">${e.type}</span></td><td>${e.user}</td>
+        <td><button class="btn-icon danger" onclick="deleteExit(${e.id})"><i class="ti ti-trash"></i></button></td>
+    </tr>`).join('');
+}
+
+function deleteExit(id) {
+    if (!confirm('¿Eliminar esta salida? (El stock se revertirá)')) return;
+    const exit = exits.find(e => e.id === id);
+    if (exit) {
+        const product = products.find(p => p.id === exit.productId);
+        if (product) { product.stock += exit.qty; saveData('products', products); }
+    }
+    exits = exits.filter(e => e.id !== id);
+    saveData('exits', exits);
+    showToast('Salida eliminada', 'info');
+    renderAll();
+}
+
+// ==================== MOVEMENTS ====================
+function renderMovements() {
+    const tbody = document.getElementById('movementsTableBody');
+    if (!tbody) return;
+    const dateFrom = document.getElementById('histDateFrom')?.value;
+    const dateTo = document.getElementById('histDateTo')?.value;
+    const typeFilter = document.getElementById('histType')?.value;
+    const prodFilter = document.getElementById('histProduct')?.value;
+    // Populate product filter
+    const prodSelect = document.getElementById('histProduct');
+    if (prodSelect && prodSelect.options.length <= 1) {
+        prodSelect.innerHTML = '<option value="">Todos los productos</option>' + products.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('');
+    }
+    let allMovements = [];
+    entries.forEach(e => allMovements.push({ ...e, movementType: 'entrada' }));
+    exits.forEach(e => allMovements.push({ ...e, movementType: 'salida' }));
+    allMovements.sort((a, b) => new Date(b.date) - new Date(a.date));
+    let filtered = allMovements.filter(m => {
+        if (dateFrom && m.date < dateFrom) return false;
+        if (dateTo && m.date > dateTo) return false;
+        if (typeFilter && m.movementType !== typeFilter) return false;
+        if (prodFilter && m.productId != prodFilter) return false;
+        return true;
+    });
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="ti ti-history"></i><h3>Sin movimientos</h3></div></td></tr>';
+        return;
+    }
+    // Calculate running stock for each product
+    const stockMap = {};
+    products.forEach(p => stockMap[p.id] = p.stock);
+    tbody.innerHTML = filtered.map(m => {
+        const dir = m.movementType === 'entrada' ? '+' : '-';
+        return `<tr>
+            <td>${formatDate(m.date)}</td>
+            <td><span class="tag ${m.movementType === 'entrada' ? 'tag-green' : 'tag-red'}">${m.movementType}</span></td>
+            <td>${getProductName(m.productId)}</td>
+            <td style="color:${m.movementType === 'entrada' ? '#22c55e' : '#ef4444'}; font-weight:600;">${dir}${m.qty}</td>
+            <td>${m.reason || m.type || '-'}</td>
+            <td>${getProductStock(m.productId)}</td>
+            <td>${m.user}</td>
+        </tr>`;
+    }).join('');
+}
+
+function clearHistFilters() {
+    document.getElementById('histDateFrom').value = '';
+    document.getElementById('histDateTo').value = '';
+    document.getElementById('histType').value = '';
+    document.getElementById('histProduct').value = '';
+    renderMovements();
+}
+
+// ==================== SUPPLIERS ====================
+function renderSuppliers() {
+    const tbody = document.getElementById('suppliersTableBody');
+    if (!tbody) return;
+    if (suppliers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="ti ti-truck"></i><h3>Sin proveedores</h3></div></td></tr>';
+        return;
+    }
+    tbody.innerHTML = suppliers.map(s => `<tr>
+        <td>#${s.id}</td><td><strong>${s.name}</strong></td><td>${s.contact || '-'}</td>
+        <td>${s.phone || '-'}</td><td>${s.address || '-'}</td><td>${s.products || '-'}</td>
+        <td>
+            <button class="btn-icon" onclick="editSupplier(${s.id})"><i class="ti ti-edit"></i></button>
+            <button class="btn-icon danger" onclick="deleteSupplier(${s.id})"><i class="ti ti-trash"></i></button>
+        </td></tr>`).join('');
+}
+
+function openSupplierModal() {
+    document.getElementById('supEditId').value = '';
+    document.getElementById('supName').value = '';
+    document.getElementById('supContact').value = '';
+    document.getElementById('supPhone').value = '';
+    document.getElementById('supEmail').value = '';
+    document.getElementById('supAddress').value = '';
+    document.getElementById('supProducts').value = '';
+    document.getElementById('modalSupplierTitle').textContent = 'Nuevo Proveedor';
+    openModal('modalSupplier');
+}
+
+function editSupplier(id) {
+    const s = suppliers.find(x => x.id === id);
+    if (!s) return;
+    document.getElementById('supEditId').value = id;
+    document.getElementById('supName').value = s.name;
+    document.getElementById('supContact').value = s.contact || '';
+    document.getElementById('supPhone').value = s.phone || '';
+    document.getElementById('supEmail').value = s.email || '';
+    document.getElementById('supAddress').value = s.address || '';
+    document.getElementById('supProducts').value = s.products || '';
+    document.getElementById('modalSupplierTitle').textContent = 'Editar Proveedor';
+    openModal('modalSupplier');
+}
+
+function saveSupplier() {
+    const name = document.getElementById('supName').value.trim();
+    if (!name) { showToast('El nombre es obligatorio', 'error'); return; }
+    const editId = document.getElementById('supEditId').value;
+    const data = {
+        name,
+        contact: document.getElementById('supContact').value.trim(),
+        phone: document.getElementById('supPhone').value.trim(),
+        email: document.getElementById('supEmail').value.trim(),
+        address: document.getElementById('supAddress').value.trim(),
+        products: document.getElementById('supProducts').value.trim()
+    };
+    if (editId) {
+        const idx = suppliers.findIndex(s => s.id == editId);
+        if (idx !== -1) { suppliers[idx] = { ...suppliers[idx], ...data }; addAudit('update', `Proveedor actualizado: ${data.name}`); showToast('Proveedor actualizado', 'success'); }
+    } else {
+        data.id = Date.now();
+        suppliers.push(data);
+        addAudit('create', `Proveedor creado: ${data.name}`);
+        showToast('Proveedor registrado', 'success');
+    }
+    saveData('suppliers', suppliers);
+    closeModal('modalSupplier');
+    renderSuppliers();
+}
+
+function deleteSupplier(id) {
+    if (!confirm('¿Eliminar este proveedor?')) return;
+    const s = suppliers.find(x => x.id === id);
+    suppliers = suppliers.filter(x => x.id !== id);
+    saveData('suppliers', suppliers);
+    addAudit('delete', `Proveedor eliminado: ${s?.name}`);
+    showToast('Proveedor eliminado', 'info');
+    renderSuppliers();
+}
+
+// ==================== LOCATIONS ====================
+function renderLocations() {
+    const tbody = document.getElementById('locationsTableBody');
+    if (!tbody) return;
+    if (locations.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="ti ti-map-pin"></i><h3>Sin ubicaciones</h3></div></td></tr>';
+        return;
+    }
+    tbody.innerHTML = locations.map(l => {
+        const prodCount = products.filter(p => p.location === l.name).length;
+        return `<tr>
+            <td><strong>${l.code}</strong></td><td>${l.name}</td>
+            <td><span class="tag tag-blue">${l.type}</span></td><td>${l.capacity || '∞'}</td>
+            <td>${prodCount} productos</td>
+            <td>
+                <button class="btn-icon" onclick="editLocation(${l.id})"><i class="ti ti-edit"></i></button>
+                <button class="btn-icon danger" onclick="deleteLocation(${l.id})"><i class="ti ti-trash"></i></button>
+            </td></tr>`;
+    }).join('');
+}
+
+function openLocationModal() {
+    document.getElementById('locEditId').value = '';
+    document.getElementById('locCode').value = '';
+    document.getElementById('locName').value = '';
+    document.getElementById('locCapacity').value = '';
+    document.getElementById('locType').value = 'almacen';
+    document.getElementById('modalLocationTitle').textContent = 'Nueva Ubicación';
+    openModal('modalLocation');
+}
+
+function editLocation(id) {
+    const l = locations.find(x => x.id === id);
+    if (!l) return;
+    document.getElementById('locEditId').value = id;
+    document.getElementById('locCode').value = l.code;
+    document.getElementById('locName').value = l.name;
+    document.getElementById('locType').value = l.type;
+    document.getElementById('locCapacity').value = l.capacity || '';
+    document.getElementById('modalLocationTitle').textContent = 'Editar Ubicación';
+    openModal('modalLocation');
+}
+
+function saveLocation() {
+    const code = document.getElementById('locCode').value.trim();
+    const name = document.getElementById('locName').value.trim();
+    if (!code || !name) { showToast('Código y nombre son obligatorios', 'error'); return; }
+    const editId = document.getElementById('locEditId').value;
+    const data = { code, name, type: document.getElementById('locType').value, capacity: parseInt(document.getElementById('locCapacity').value) || 0 };
+    if (editId) {
+        const idx = locations.findIndex(l => l.id == editId);
+        if (idx !== -1) { locations[idx] = { ...locations[idx], ...data }; addAudit('update', `Ubicación actualizada: ${data.name}`); showToast('Ubicación actualizada', 'success'); }
+    } else {
+        data.id = Date.now();
+        locations.push(data);
+        addAudit('create', `Ubicación creada: ${data.name} (${data.code})`);
+        showToast('Ubicación registrada', 'success');
+    }
+    saveData('locations', locations);
+    closeModal('modalLocation');
+    renderLocations();
+}
+
+function deleteLocation(id) {
+    if (!confirm('¿Eliminar esta ubicación?')) return;
+    const l = locations.find(x => x.id === id);
+    locations = locations.filter(x => x.id !== id);
+    saveData('locations', locations);
+    addAudit('delete', `Ubicación eliminada: ${l?.name}`);
+    showToast('Ubicación eliminada', 'info');
+    renderLocations();
+}
+
+// ==================== LOTS ====================
+function renderLots() {
+    const tbody = document.getElementById('lotsTableBody');
+    if (!tbody) return;
+    if (lots.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="ti ti-barcode"></i><h3>Sin lotes</h3></div></td></tr>';
+        return;
+    }
+    const today = new Date().toISOString().split('T')[0];
+    const thirtyDays = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+    tbody.innerHTML = lots.map(l => {
+        let status = 'ok', label = 'Vigente', tagClass = 'tag-green';
+        if (l.expiry && l.expiry < today) { status = 'expired'; label = 'Vencido'; tagClass = 'tag-red'; }
+        else if (l.expiry && l.expiry < thirtyDays) { status = 'warning'; label = 'Por vencer'; tagClass = 'tag-yellow'; }
+        return `<tr>
+            <td><strong>${l.lotNumber}</strong></td><td>${getProductName(l.productId)}</td>
+            <td>${l.qty}</td><td>${l.expiry ? formatDate(l.expiry) : 'N/A'}</td>
+            <td><span class="tag ${tagClass}">${label}</span></td>
+            <td><button class="btn-icon danger" onclick="deleteLot(${l.id})"><i class="ti ti-trash"></i></button></td>
+        </tr>`;
+    }).join('');
+}
+
+function openLotModal() {
+    document.getElementById('lotNumber').value = '';
+    document.getElementById('lotQty').value = '';
+    document.getElementById('lotExpiry').value = '';
+    const prodSelect = document.getElementById('lotProduct');
+    prodSelect.innerHTML = '<option value="">Seleccionar producto</option>' + products.map(p => `<option value="${p.id}">${p.code} - ${p.name}</option>`).join('');
+    openModal('modalLot');
+}
+
+function saveLot() {
+    const prodId = parseInt(document.getElementById('lotProduct').value);
+    const lotNumber = document.getElementById('lotNumber').value.trim();
+    if (!prodId || !lotNumber) { showToast('Completa producto y número de lote', 'error'); return; }
+    const lot = {
+        id: Date.now(),
+        productId: prodId,
+        lotNumber,
+        qty: parseInt(document.getElementById('lotQty').value) || 0,
+        expiry: document.getElementById('lotExpiry').value
+    };
+    lots.push(lot);
+    saveData('lots', lots);
+    addAudit('create', `Lote creado: ${lotNumber}`);
+    showToast('Lote registrado', 'success');
+    closeModal('modalLot');
+    renderLots();
+}
+
+function deleteLot(id) {
+    if (!confirm('¿Eliminar este lote?')) return;
+    lots = lots.filter(l => l.id !== id);
+    saveData('lots', lots);
+    showToast('Lote eliminado', 'info');
+    renderLots();
+}
+
+// ==================== USERS ====================
+function renderUsers() {
+    const tbody = document.getElementById('usersTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = users.map(u => {
+        const roleLabels = { admin: 'Administrador', almacenista: 'Almacenista', consulta: 'Consulta' };
+        return `<tr>
+            <td><strong>${u.username}</strong></td><td>${u.fullname || '-'}</td>
+            <td><span class="tag tag-blue">${roleLabels[u.role] || u.role}</span></td>
+            <td><span class="tag ${u.status === 'activo' ? 'tag-green' : 'tag-red'}">${u.status}</span></td>
+            <td>${u.lastAccess ? formatDate(u.lastAccess) : 'Nunca'}</td>
+            <td>
+                <button class="btn-icon" onclick="editUser(${u.id})"><i class="ti ti-edit"></i></button>
+                ${u.username !== 'admin' ? `<button class="btn-icon danger" onclick="deleteUser(${u.id})"><i class="ti ti-trash"></i></button>` : ''}
+            </td></tr>`;
+    }).join('');
+}
+
+function openUserModal() {
+    document.getElementById('userEditId').value = '';
+    document.getElementById('userUsername').value = '';
+    document.getElementById('userFullname').value = '';
+    document.getElementById('userPassword').value = '';
+    document.getElementById('userRole').value = 'almacenista';
+    document.getElementById('userStatus').value = 'activo';
+    document.getElementById('modalUserTitle').textContent = 'Nuevo Usuario';
+    openModal('modalUser');
+}
+
+function editUser(id) {
+    const u = users.find(x => x.id === id);
+    if (!u) return;
+    document.getElementById('userEditId').value = id;
+    document.getElementById('userUsername').value = u.username;
+    document.getElementById('userFullname').value = u.fullname || '';
+    document.getElementById('userPassword').value = '';
+    document.getElementById('userRole').value = u.role;
+    document.getElementById('userStatus').value = u.status;
+    document.getElementById('modalUserTitle').textContent = 'Editar Usuario';
+    openModal('modalUser');
+}
+
+function saveUser() {
+    const username = document.getElementById('userUsername').value.trim();
+    if (!username) { showToast('El usuario es obligatorio', 'error'); return; }
+    const editId = document.getElementById('userEditId').value;
+    const data = {
+        username,
+        fullname: document.getElementById('userFullname').value.trim(),
+        password: document.getElementById('userPassword').value,
+        role: document.getElementById('userRole').value,
+        status: document.getElementById('userStatus').value
+    };
+    if (editId) {
+        const idx = users.findIndex(u => u.id == editId);
+        if (idx !== -1) {
+            if (!data.password) delete data.password;
+            users[idx] = { ...users[idx], ...data };
+            addAudit('update', `Usuario actualizado: ${data.username}`);
+            showToast('Usuario actualizado', 'success');
+        }
+    } else {
+        if (!data.password) { showToast('La contraseña es obligatoria', 'error'); return; }
+        if (users.find(u => u.username === username)) { showToast('El usuario ya existe', 'error'); return; }
+        data.id = Date.now();
+        data.lastAccess = null;
+        users.push(data);
+        addAudit('create', `Usuario creado: ${data.username}`);
+        showToast('Usuario registrado', 'success');
+    }
+    saveData('users', users);
+    closeModal('modalUser');
+    renderUsers();
+}
+
+function deleteUser(id) {
+    if (!confirm('¿Eliminar este usuario?')) return;
+    const u = users.find(x => x.id === id);
+    users = users.filter(x => x.id !== id);
+    saveData('users', users);
+    addAudit('delete', `Usuario eliminado: ${u?.username}`);
+    showToast('Usuario eliminado', 'info');
+    renderUsers();
+}
+
+// ==================== ALERTS ====================
+function checkAlerts() {
+    const alerts = generateAlerts();
+    const count = alerts.length;
+    document.getElementById('alertCount').textContent = count;
+    document.getElementById('alertCount').style.display = count > 0 ? '' : 'none';
+    document.getElementById('notifDot').style.display = count > 0 ? '' : 'none';
+}
+
+function generateAlerts() {
+    const alerts = [];
+    const today = new Date().toISOString().split('T')[0];
+    const thirtyDays = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+    products.forEach(p => {
+        if (p.stock <= (p.minStock || 0)) {
+            alerts.push({ type: 'stock_bajo', icon: 'critical', title: `Stock crítico: ${p.name}`, desc: `Stock actual: ${p.stock} (Mínimo: ${p.minStock})`, product: p.name, time: new Date().toISOString() });
+        } else if (p.stock <= (p.minStock || 0) * 1.5) {
+            alerts.push({ type: 'stock_bajo', icon: 'warning', title: `Stock bajo: ${p.name}`, desc: `Stock actual: ${p.stock} (Mínimo: ${p.minStock})`, product: p.name, time: new Date().toISOString() });
+        }
+        if (p.maxStock && p.stock >= p.maxStock) {
+            alerts.push({ type: 'stock_alto', icon: 'warning', title: `Stock excesivo: ${p.name}`, desc: `Stock actual: ${p.stock} (Máximo: ${p.maxStock})`, product: p.name, time: new Date().toISOString() });
+        }
+    });
+    lots.forEach(l => {
+        if (l.expiry) {
+            if (l.expiry < today) {
+                alerts.push({ type: 'vencido', icon: 'critical', title: `Producto vencido: ${getProductName(l.productId)}`, desc: `Lote ${l.lotNumber} venció el ${formatDate(l.expiry)}`, product: getProductName(l.productId), time: new Date().toISOString() });
+            } else if (l.expiry < thirtyDays) {
+                alerts.push({ type: 'vencimiento', icon: 'warning', title: `Vencimiento próximo: ${getProductName(l.productId)}`, desc: `Lote ${l.lotNumber} vence el ${formatDate(l.expiry)}`, product: getProductName(l.productId), time: new Date().toISOString() });
+            }
+        }
+    });
+    return alerts;
+}
+
+function renderAlerts() {
+    const filter = document.getElementById('alertFilter')?.value || '';
+    let alerts = generateAlerts();
+    if (filter) alerts = alerts.filter(a => a.type === filter);
+    const container = document.getElementById('alertsList');
+    if (!container) return;
+    if (alerts.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="ti ti-bell-check"></i><h3>Sin alertas</h3><p>Todo está en orden</p></div>';
+        return;
+    }
+    container.innerHTML = alerts.map(a => `
+        <div class="alert-item">
+            <div class="alert-icon ${a.icon}"><i class="ti ${a.icon === 'critical' ? 'ti-alert-triangle' : a.icon === 'warning' ? 'ti-alert-circle' : 'ti-info-circle'}"></i></div>
+            <div class="alert-content"><div class="alert-title">${a.title}</div><div class="alert-desc">${a.desc}</div></div>
+            <div class="alert-time">Hace poco</div>
+        </div>`).join('');
+    // Dashboard alerts
+    const dashAlerts = document.getElementById('dashAlerts');
+    if (dashAlerts) {
+        const recent = alerts.slice(0, 3);
+        dashAlerts.innerHTML = recent.map(a => `
+            <div class="alert-item">
+                <div class="alert-icon ${a.icon}"><i class="ti ${a.icon === 'critical' ? 'ti-alert-triangle' : a.icon === 'warning' ? 'ti-alert-circle' : 'ti-info-circle'}"></i></div>
+                <div class="alert-content"><div class="alert-title">${a.title}</div><div class="alert-desc">${a.desc}</div></div>
+            </div>`).join('');
+    }
+}
+
+function dismissAllAlerts() {
+    showToast('Todas las alertas descartadas', 'info');
+}
+
+// ==================== AUDIT LOG ====================
+function renderAudit() {
+    const dateFrom = document.getElementById('auditDateFrom')?.value;
+    const dateTo = document.getElementById('auditDateTo')?.value;
+    const actionFilter = document.getElementById('auditAction')?.value;
+    let filtered = auditLog.filter(a => {
+        if (dateFrom && a.timestamp < dateFrom) return false;
+        if (dateTo && a.timestamp > dateTo + 'T23:59:59') return false;
+        if (actionFilter && a.action !== actionFilter) return false;
+        return true;
+    });
+    const container = document.getElementById('auditLogList');
+    if (!container) return;
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="ti ti-shield-check"></i><h3>Sin registros</h3></div>';
+        return;
+    }
+    container.innerHTML = filtered.slice(0, 200).map(a => `
+        <div class="audit-log-item">
+            <div class="audit-dot ${a.action}"></div>
+            <div style="flex:1;"><div style="font-size:13px;font-weight:500;">${a.detail}</div><div style="font-size:11px;color:#64748b;margin-top:3px;">${a.user} · ${formatDate(a.timestamp)}</div></div>
+            <span class="tag ${a.action === 'create' ? 'tag-green' : a.action === 'update' ? 'tag-blue' : a.action === 'delete' ? 'tag-red' : 'tag-yellow'}">${a.action}</span>
+        </div>`).join('');
+}
+
+// ==================== REPORTS ====================
+function switchReportTab(tab, btn) {
+    document.querySelectorAll('#sec-reportes .tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#sec-reportes .tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('report-' + tab).classList.add('active');
+    if (tab === 'valorizado') generateValorizedReport();
+    if (tab === 'rotacion') generateRotationReport();
+    if (tab === 'periodo') generatePeriodReport();
+}
+
+function generateValorizedReport() {
+    const tbody = document.getElementById('valorizedBody');
+    const tfoot = document.getElementById('valorizedFoot');
+    if (!tbody) return;
+    let totalValue = 0;
+    const rows = products.map(p => {
+        const val = p.stock * (p.price || 0);
+        totalValue += val;
+        return { ...p, value: val };
+    }).sort((a, b) => b.value - a.value);
+    tbody.innerHTML = rows.map(p => {
+        const pct = totalValue > 0 ? ((p.value / totalValue) * 100).toFixed(1) : '0';
+        return `<tr><td><strong>${p.name}</strong></td><td>${p.stock}</td><td>$${(p.price||0).toFixed(2)}</td><td>$${p.value.toFixed(2)}</td><td><div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;background:#334155;border-radius:4px;height:6px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:#38bdf8;border-radius:4px;"></div></div><span style="font-size:11px;color:#94a3b8;">${pct}%</span></div></td></tr>`;
+    }).join('');
+    tfoot.innerHTML = `<tr style="font-weight:700;"><td colspan="3">TOTAL</td><td>$${totalValue.toFixed(2)}</td><td>100%</td></tr>`;
+}
+
+function exportValorizedCSV() {
+    let csv = 'Producto,Código,Stock,Precio Unitario,Valor Total\n';
+    products.forEach(p => { csv += `"${p.name}","${p.code}",${p.stock},${p.price},${(p.stock * p.price).toFixed(2)}\n`; });
+    downloadCSV(csv, 'inventario_valorizado.csv');
+}
+
+function generateRotationReport() {
+    // Calculate rotation based on entries + exits
+    const rotationMap = {};
+    entries.forEach(e => { rotationMap[e.productId] = (rotationMap[e.productId] || 0) + e.qty; });
+    exits.forEach(e => { rotationMap[e.productId] = (rotationMap[e.productId] || 0) + e.qty; });
+    const rotationData = products.map(p => ({ name: p.name, rotation: rotationMap[p.id] || 0 })).sort((a, b) => b.rotation - a.rotation);
+    // Top 10
+    const top10 = rotationData.slice(0, 10);
+    const low10 = [...rotationData].reverse().slice(0, 10);
+    if (chartTopRotated) chartTopRotated.destroy();
+    if (chartLowRotated) chartLowRotated.destroy();
+    const ctx1 = document.getElementById('chartTopRotated')?.getContext('2d');
+    const ctx2 = document.getElementById('chartLowRotated')?.getContext('2d');
+    if (ctx1) {
+        chartTopRotated = new Chart(ctx1, { type: 'bar', data: { labels: top10.map(r => r.name.substring(0, 15)), datasets: [{ label: 'Movimientos', data: top10.map(r => r.rotation), backgroundColor: '#38bdf8', borderRadius: 6 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#334155' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8', maxRotation: 45 } } } } });
+    }
+    if (ctx2) {
+        chartLowRotated = new Chart(ctx2, { type: 'bar', data: { labels: low10.map(r => r.name.substring(0, 15)), datasets: [{ label: 'Movimientos', data: low10.map(r => r.rotation), backgroundColor: '#f59e0b', borderRadius: 6 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#334155' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8', maxRotation: 45 } } } } });
+    }
+}
+
+function generatePeriodReport() {
+    const days = parseInt(document.getElementById('reportPeriod')?.value || 30);
+    const endDate = new Date();
+    const startDate = new Date(Date.now() - days * 86400000);
+    const dayMap = {};
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const key = d.toISOString().split('T')[0];
+        dayMap[key] = { entradas: 0, salidas: 0 };
+    }
+    entries.forEach(e => { if (e.date >= startDate.toISOString().split('T')[0] && e.date <= endDate.toISOString().split('T')[0]) { dayMap[e.date] = dayMap[e.date] || { entradas: 0, salidas: 0 }; dayMap[e.date].entradas += e.qty; } });
+    exits.forEach(e => { if (e.date >= startDate.toISOString().split('T')[0] && e.date <= endDate.toISOString().split('T')[0]) { dayMap[e.date] = dayMap[e.date] || { entradas: 0, salidas: 0 }; dayMap[e.date].salidas += e.qty; } });
+    const labels = Object.keys(dayMap).sort();
+    if (chartPeriod) chartPeriod.destroy();
+    const ctx = document.getElementById('chartPeriod')?.getContext('2d');
+    if (ctx) {
+        chartPeriod = new Chart(ctx, { type: 'line', data: { labels: labels.map(l => l.substring(5)), datasets: [
+            { label: 'Entradas', data: labels.map(l => dayMap[l].entradas), borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.4 },
+            { label: 'Salidas', data: labels.map(l => dayMap[l].salidas), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4 }
+        ] }, options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', maxTicksLimit: 10 } } } } });
+    }
+}
+
+// ==================== DASHBOARD ====================
+function renderDashboard() {
+    const totalProducts = products.length;
+    const totalStock = products.reduce((s, p) => s + p.stock, 0);
+    const totalValue = products.reduce((s, p) => s + (p.stock * (p.price || 0)), 0);
+    const alerts = generateAlerts();
+    const lowStockCount = products.filter(p => p.stock <= (p.minStock || 0)).length;
+    const statsContainer = document.getElementById('dashStats');
+    if (!statsContainer) return;
+    statsContainer.innerHTML = `
+        <div class="stat-card"><div class="stat-icon blue"><i class="ti ti-package"></i></div><div class="stat-value">${totalProducts}</div><div class="stat-label">Total Productos</div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="ti ti-warehouse"></i></div><div class="stat-value">${totalStock.toLocaleString()}</div><div class="stat-label">Unidades en Stock</div></div>
+        <div class="stat-card"><div class="stat-icon purple"><i class="ti ti-currency-dollar"></i></div><div class="stat-value">$${totalValue.toLocaleString('en', {minimumFractionDigits:2})}</div><div class="stat-label">Valor del Inventario</div></div>
+        <div class="stat-card"><div class="stat-icon red"><i class="ti ti-alert-triangle"></i></div><div class="stat-value">${alerts.length}</div><div class="stat-label">Alertas Activas</div></div>
+        <div class="stat-card"><div class="stat-icon yellow"><i class="ti ti-arrow-down-circle"></i></div><div class="stat-value">${entries.length}</div><div class="stat-label">Entradas Totales</div></div>
+        <div class="stat-card"><div class="stat-icon blue"><i class="ti ti-arrow-up-circle"></i></div><div class="stat-value">${exits.length}</div><div class="stat-label">Salidas Totales</div></div>
+    `;
+    // Charts
+    renderDashboardCharts();
+}
+
+function renderDashboardCharts() {
+    // Category chart
+    const catMap = {};
+    products.forEach(p => { catMap[p.category || 'Sin categoría'] = (catMap[p.category || 'Sin categoría'] || 0) + p.stock; });
+    if (chartCategory) chartCategory.destroy();
+    const ctx1 = document.getElementById('chartCategory')?.getContext('2d');
+    if (ctx1) {
+        chartCategory = new Chart(ctx1, { type: 'doughnut', data: { labels: Object.keys(catMap), datasets: [{ data: Object.values(catMap), backgroundColor: ['#38bdf8', '#22c55e', '#a855f7', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6', '#6366f1'], borderWidth: 0 }] }, options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 15 } } } } });
+    }
+    // Last 7 days movements
+    const dayMap = {};
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 86400000);
+        const key = d.toISOString().split('T')[0];
+        dayMap[key] = { entradas: 0, salidas: 0 };
+    }
+    entries.forEach(e => { if (dayMap[e.date]) dayMap[e.date].entradas += e.qty; });
+    exits.forEach(e => { if (dayMap[e.date]) dayMap[e.date].salidas += e.qty; });
+    if (chartMovements) chartMovements.destroy();
+    const ctx2 = document.getElementById('chartMovements')?.getContext('2d');
+    if (ctx2) {
+        chartMovements = new Chart(ctx2, { type: 'bar', data: { labels: Object.keys(dayMap).map(d => d.substring(5)), datasets: [
+            { label: 'Entradas', data: Object.values(dayMap).map(d => d.entradas), backgroundColor: '#22c55e', borderRadius: 4 },
+            { label: 'Salidas', data: Object.values(dayMap).map(d => d.salidas), backgroundColor: '#ef4444', borderRadius: 4 }
+        ] }, options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8' } } } } });
+    }
+}
+
+// ==================== IMPORT/EXPORT ====================
+function importCSV(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const text = e.target.result;
+            const lines = text.split('\n').filter(l => l.trim());
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+            let imported = 0;
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+                if (values.length < 2) continue;
+                const row = {};
+                headers.forEach((h, idx) => row[h] = values[idx]);
+                const product = {
+                    id: Date.now() + i,
+                    code: row.codigo || 'PROD' + Date.now() + i,
+                    name: row.nombre || 'Sin nombre',
+                    category: row.categoria || '',
+                    price: parseFloat(row.precio) || 0,
+                    stock: parseInt(row.stock) || 0,
+                    minStock: parseInt(row.stock_min) || parseInt(row.stockminimo) || 10,
+                    maxStock: parseInt(row.stock_max) || parseInt(row.stockmaximo) || 100,
+                    location: row.ubicacion || '',
+                    desc: row.descripcion || ''
+                };
+                products.push(product);
+                imported++;
+            }
+            saveData('products', products);
+            addAudit('create', `Importación CSV: ${imported} productos importados`);
+            showToast(`${imported} productos importados correctamente`, 'success');
+            renderAll();
+        } catch (err) {
+            showToast('Error al importar: ' + err.message, 'error');
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
+function exportProductsCSV() {
+    let csv = 'Código,Nombre,Categoría,Precio,Stock,Stock Mínimo,Stock Máximo,Ubicación,Descripción\n';
+    products.forEach(p => {
+        csv += `"${p.code}","${p.name}","${p.category||''}",${p.price},${p.stock},${p.minStock||0},${p.maxStock||0},"${p.location||''}","${p.desc||''}"\n`;
+    });
+    downloadCSV(csv, 'productos_inventario.csv');
+}
+
+function exportMovementsCSV() {
+    let csv = 'Fecha,Tipo,Producto,Cantidad,Detalle,Usuario\n';
+    entries.forEach(e => { csv += `"${e.date}","Entrada (${e.type})","${getProductName(e.productId)}",${e.qty},"${e.reason||''}","${e.user}"\n`; });
+    exits.forEach(e => { csv += `"${e.date}","Salida (${e.type})","${getProductName(e.productId)}",${e.qty},"${e.reason||''}","${e.user}"\n`; });
+    downloadCSV(csv, 'movimientos_inventario.csv');
+}
+
+function exportBackupJSON() {
+    const backup = { products, entries, exits, suppliers, locations, lots, users, auditLog, exportDate: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'backup_inventario_' + new Date().toISOString().split('T')[0] + '.json';
+    a.click(); URL.revokeObjectURL(url);
+    showToast('Backup exportado correctamente', 'success');
+}
+
+function downloadCSV(csv, filename) {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    a.click(); URL.revokeObjectURL(url);
+    showToast('Archivo exportado: ' + filename, 'success');
+}
+
+// ==================== HELPERS ====================
+function getProductName(id) { const p = products.find(x => x.id === id); return p ? p.name : 'Desconocido'; }
+function getProductStock(id) { const p = products.find(x => x.id === id); return p ? p.stock : 0; }
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function renderAll() {
+    renderDashboard();
+    renderProducts();
+    renderEntries();
+    renderExits();
+    renderMovements();
+    renderSuppliers();
+    renderLocations();
+    renderLots();
+    renderAlerts();
+    renderAudit();
+    renderUsers();
+    checkAlerts();
+}
+
+function refreshAll() {
+    renderAll();
+    showToast('Datos actualizados', 'info');
+}
+
+// Init
+initApp();
+</script>
+</body>
+</html>
+
