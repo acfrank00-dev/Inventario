@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mini Hollow Knight - Fase 2</title>
+  <title>Mini Hollow Knight - Fase 3</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #050508;
+      background: #040508;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -16,8 +16,8 @@
       font-family: 'Segoe UI', system-ui, sans-serif;
     }
     canvas {
-      border: 1px solid #151825;
-      box-shadow: 0 0 40px rgba(60, 90, 150, 0.25);
+      border: 1px solid #1a1d2a;
+      box-shadow: 0 0 40px rgba(60, 90, 150, 0.3);
       background: #0a0b12;
       image-rendering: auto;
     }
@@ -33,6 +33,7 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     
+    // Físicas
     const GRAVITY = 0.55;
     const JUMP_FORCE = -11.8;
     const GROUND_ACCEL = 0.9;
@@ -42,6 +43,15 @@
     const COYOTE_TIME = 7;
     const JUMP_BUFFER = 8;
     const WORLD_WIDTH = 1600;
+
+    // Combate
+    const ATTACK_DURATION = 14;     // Frames activos
+    const ATTACK_COOLDOWN = 18;     // Frames de espera
+    const ATTACK_KNOCKBACK = 7;     // Empuje al enemigo
+    const PLAYER_KNOCKBACK = 4;     // Empuje al jugador al recibir daño
+    const I_FRAMES_PLAYER = 45;     // Invulnerabilidad post-daño
+    const I_FRAMES_ENEMY = 30;      // Invulnerabilidad post-golpe recibido
+    const HITSTOP_DURATION = 5;     // Congelación al impactar
 
     /* =========================================
        ⌨️ INPUT
@@ -53,7 +63,6 @@
     /* =========================================
        🌍 MUNDO & PLATAFORMAS
        ========================================= */
-    // type: 'solid' (colisión completa) | 'oneway' (solo desde arriba)
     const platforms = [
       { x: 0, y: 380, w: 450, h: 40, type: 'solid' },
       { x: 550, y: 320, w: 180, h: 20, type: 'oneway' },
@@ -66,47 +75,59 @@
     ];
 
     /* =========================================
-       👤 PLAYER (Con Animaciones)
+       👤 PLAYER
        ========================================= */
     const player = {
       x: 100, y: 300, w: 22, h: 30,
       vx: 0, vy: 0,
-      grounded: false,
-      facing: 1,
-      coyoteTimer: 0,
-      jumpBufferTimer: 0,
-      // Animación & Estado
-      breathOffset: 0,
-      walkCycle: 0,
-      lean: 0,
-      stretchY: 0,
-      cape: [],
-      lastGroundTime: 0
+      grounded: false, facing: 1,
+      coyoteTimer: 0, jumpBufferTimer: 0,
+      breathOffset: 0, walkCycle: 0, lean: 0, stretchY: 0, cape: [],
+      // Combate
+      hp: 5, maxHp: 5,
+      attack: { active: false, timer: 0, cooldown: 0, hitReg: false },
+      invincible: 0, flashTimer: 0
     };
 
     /* =========================================
-       📷 CAMERA (Lookahead & Bounds)
+       👾 ENEMIGOS
+       ========================================= */
+    const enemies = [];
+    function spawnEnemy(x, y, patrolRange = 120) {
+      enemies.push({
+        x, y, w: 28, h: 24, vx: 1.2, vy: 0,
+        hp: 3, maxHp: 3,
+        facing: 1, state: 'patrol', // patrol, chase, hurt
+        invincible: 0, flashTimer: 0,
+        spawnX: x, patrolRange, alertTimer: 0, respawnTimer: 0
+      });
+    }
+    spawnEnemy(420, 340, 80);
+    spawnEnemy(1150, 330, 100);
+
+    /* =========================================
+       📷 CAMERA & EFECTOS
        ========================================= */
     const camera = { x: 0, y: 0 };
     const camSettings = { lerp: 0.06, lookahead: 60, minY: -50, maxY: 150 };
+    const screenShake = { x: 0, y: 0, intensity: 0, decay: 0.85 };
+    let hitStopTimer = 0;
 
     /* =========================================
        🌌 PARTÍCULAS & AMBIENTE
        ========================================= */
     const particles = [];
     const ambientDust = [];
-    
-    // Inicializar polvo ambiental
-    for(let i=0; i<25; i++) ambientDust.push({
+    for(let i=0; i<30; i++) ambientDust.push({
       x: Math.random()*WORLD_WIDTH, y: Math.random()*canvas.height,
-      size: Math.random()*1.5 + 0.5, speed: Math.random()*0.3 + 0.1, alpha: Math.random()*0.4 + 0.1
+      size: Math.random()*1.5+0.5, speed: Math.random()*0.3+0.1, alpha: Math.random()*0.4+0.1
     });
 
-    function spawnDust(x, y, count, color, speed=2) {
+    function spawnParticles(x, y, count, color, speed=2, gravity=0) {
       for(let i=0; i<count; i++) {
         particles.push({
-          x, y, vx: (Math.random()-0.5)*speed*1.5, vy: (Math.random()-0.8)*speed,
-          life: 20+Math.random()*15, maxLife: 35, size: 1+Math.random()*2.5, color
+          x, y, vx: (Math.random()-0.5)*speed*2, vy: (Math.random()-0.6)*speed,
+          life: 15+Math.random()*20, maxLife: 35, size: 1+Math.random()*3, color, gravity
         });
       }
     }
@@ -115,300 +136,304 @@
        ⚙️ PHYSICS & ACTUALIZACIÓN
        ========================================= */
     function update() {
-      // Coyote & Buffer
-      if (player.grounded) { player.coyoteTimer = COYOTE_TIME; player.lastGroundTime = Date.now(); }
-      else player.coyoteTimer--;
-      
-      if (keys['Space'] || keys['KeyW']) player.jumpBufferTimer = JUMP_BUFFER;
-      else player.jumpBufferTimer--;
+      if (hitStopTimer > 0) { hitStopTimer--; return; }
 
-      // Salto
-      if (player.jumpBufferTimer > 0 && player.coyoteTimer > 0) {
-        player.vy = JUMP_FORCE;
-        player.grounded = false;
-        player.coyoteTimer = 0; player.jumpBufferTimer = 0;
-        player.stretchY = -0.4;
-        spawnDust(player.x + player.w/2, player.y + player.h, 6, '#8899cc', 1.2);
-      }
+      // --- PLAYER UPDATE ---
+      if (player.invincible > 0) player.invincible--;
+      if (player.attack.cooldown > 0) player.attack.cooldown--;
 
-      // Variable jump height
-      if (!(keys['Space'] || keys['KeyW']) && player.vy < -3) player.vy *= 0.72;
-
-      // Movimiento
+      // Input Movimiento
       let accel = player.grounded ? GROUND_ACCEL : AIR_ACCEL;
       let moving = false;
       if (keys['ArrowRight'] || keys['KeyD']) { player.vx += accel; player.facing = 1; moving = true; }
       else if (keys['ArrowLeft'] || keys['KeyA']) { player.vx -= accel; player.facing = -1; moving = true; }
-      else { player.vx *= FRICTION; moving = false; }
+      else player.vx *= FRICTION;
       player.vx = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, player.vx));
 
+      // Salto
+      if (player.grounded) player.coyoteTimer = COYOTE_TIME; else player.coyoteTimer--;
+      if (keys['Space'] || keys['KeyW']) player.jumpBufferTimer = JUMP_BUFFER; else player.jumpBufferTimer--;
+      if (player.jumpBufferTimer > 0 && player.coyoteTimer > 0) {
+        player.vy = JUMP_FORCE; player.grounded = false; player.coyoteTimer = 0; player.jumpBufferTimer = 0;
+        player.stretchY = -0.4;
+        spawnParticles(player.x+player.w/2, player.y+player.h, 6, '#8899cc', 1.2);
+      }
+      if (!(keys['Space']||keys['KeyW']) && player.vy < -3) player.vy *= 0.72;
+
+      // Ataque
+      if ((keys['KeyX'] || keys['KeyJ']) && player.attack.cooldown === 0 && !player.attack.active) {
+        player.attack.active = true; player.attack.timer = ATTACK_DURATION; player.attack.hitReg = false;
+        player.attack.cooldown = ATTACK_COOLDOWN;
+      }
+      if (player.attack.active) {
+        player.attack.timer--;
+        if (player.attack.timer <= 0) player.attack.active = false;
+      }
+
       // Animaciones
-      player.walkCycle = moving ? player.walkCycle + 0.15 : player.walkCycle * 0.85;
+      player.walkCycle = moving ? player.walkCycle+0.15 : player.walkCycle*0.85;
       player.lean = player.vx * 0.045;
-      player.stretchY *= 0.9; // Recuperación elástica
-      player.breathOffset = Math.sin(Date.now() * 0.003) * 1.2;
+      player.stretchY *= 0.9;
+      player.breathOffset = Math.sin(Date.now()*0.003)*1.2;
+      if (moving && player.grounded && Math.random()>0.8) spawnParticles(player.x+player.w/2-(player.facing*8), player.y+player.h, 1, '#6677aa', 0.6);
 
-      // Partículas al correr
-      if (moving && player.grounded && Math.random() > 0.85) {
-        spawnDust(player.x + player.w/2 - (player.facing*8), player.y + player.h, 1, '#6677aa', 0.6);
-      }
-
-      // Gravedad
+      // Gravedad & Colisiones
       player.vy += GRAVITY;
+      player.x += player.vx; resolveCollisions('x');
+      player.grounded = false; player.y += player.vy; resolveCollisions('y');
+      if (player.grounded && player.vy > 4) { player.stretchY = 0.35; spawnParticles(player.x+player.w/2, player.y+player.h, 8, '#aabbdd', 1.5); }
 
-      // Colisiones X
-      player.x += player.vx;
-      resolveCollisions('x');
+      // Capa
+      player.cape.unshift({ x: player.x+player.w/2, y: player.y+player.h/3, a: 0.6 });
+      if (player.cape.length>14) player.cape.pop();
+      for(let i=0; i<player.cape.length; i++) player.cape[i].y += 0.8 + (i*0.15);
 
-      // Colisiones Y
-      player.grounded = false;
-      player.y += player.vy;
-      resolveCollisions('y');
+      // --- ENEMY UPDATE ---
+      for (let e of enemies) {
+        if (e.respawnTimer > 0) { e.respawnTimer--; continue; }
+        if (e.invincible > 0) e.invincible--;
+        if (e.flashTimer > 0) e.flashTimer--;
 
-      // Aterrizaje
-      if (player.grounded && player.vy > 4) {
-        player.stretchY = 0.35;
-        spawnDust(player.x + player.w/2, player.y + player.h, 10, '#aabbdd', 2);
+        // IA Simple
+        let distToPlayer = Math.abs(player.x - e.x);
+        if (distToPlayer < 140 && e.state !== 'hurt') e.state = 'chase';
+        else if (distToPlayer > 200) e.state = 'patrol';
+
+        if (e.state === 'chase') {
+          e.vx = (player.x > e.x ? 1 : -1) * 2.2;
+          e.facing = player.x > e.x ? 1 : -1;
+        } else {
+          e.vx = (e.facing * 1.1);
+          // Detección de bordes/muros para patrullaje
+          let onGround = platforms.some(p => p.type==='solid' && e.x+e.w>p.x && e.x<p.x+p.w && Math.abs((e.y+e.h)-p.y)<5);
+          let wallAhead = platforms.some(p => p.type==='solid' && e.x+e.facing*20 > p.x && e.x+e.facing*20 < p.x+p.w && e.y+e.h > p.y && e.y < p.y+p.h);
+          if (!onGround || wallAhead) { e.facing *= -1; e.vx *= -1; }
+        }
+
+        // Físicas enemigo
+        e.vy += GRAVITY;
+        e.x += e.vx; resolveEnemyCollisions('x', e);
+        e.y += e.vy; resolveEnemyCollisions('y', e);
+
+        // Daño por contacto al jugador
+        if (checkOverlap(player, e) && player.invincible === 0) {
+          takeDamage(e.facing * -1);
+        }
+
+        // HITBOX ATACANTE
+        if (player.attack.active && player.attack.timer > 4 && player.attack.timer < 12 && !player.attack.hitReg) {
+          let atkBox = { x: player.facing>0 ? player.x+player.w : player.x-35, y: player.y-5, w: 35, h: player.h+10 };
+          if (checkOverlap(atkBox, e)) {
+            e.hp--; e.invincible = I_FRAMES_ENEMY; e.flashTimer = 8; e.state = 'hurt';
+            e.vx = player.facing * ATTACK_KNOCKBACK; e.vy = -3;
+            spawnParticles(e.x+e.w/2, e.y+e.h/2, 12, '#ffaa33', 3, 0.15);
+            spawnParticles(e.x+e.w/2, e.y+e.h/2, 6, '#ffffff', 2, 0.05);
+            hitStopTimer = HITSTOP_DURATION; screenShake.intensity = 4;
+            player.attack.hitReg = true;
+            if (e.hp <= 0) {
+              e.respawnTimer = 180; e.hp = e.maxHp; e.state = 'patrol';
+              spawnParticles(e.x+e.w/2, e.y+e.h/2, 25, '#ff5566', 4, 0.1);
+            }
+          }
+        }
       }
 
-      // Capa (Cape)
-      player.cape.unshift({ x: player.x + player.w/2, y: player.y + player.h/3, a: 0.6 });
-      if (player.cape.length > 14) player.cape.pop();
-      for (let i=0; i<player.cape.length; i++) player.cape[i].y += 0.8 + (i*0.15);
+      // Partículas
+      for(let i=particles.length-1; i>=0; i--) {
+        let p = particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=p.gravity; p.life--;
+        if(p.life<=0) { particles.splice(i,1); continue; }
+      }
+      ambientDust.forEach(p => { p.x-=p.speed; if(p.x<camera.x-50) p.x=camera.x+canvas.width+20; });
 
-      // Polvo ambiental
-      ambientDust.forEach(p => {
-        p.x -= p.speed;
-        p.y += Math.sin(Date.now()*0.001 + p.x)*0.2;
-        if (p.x < camera.x - 50) p.x = camera.x + canvas.width + 20;
-      });
-
-      // Cámara
-      let targetX = player.x + player.w/2 - canvas.width/2 + (player.facing * camSettings.lookahead);
-      let targetY = player.y + player.h/2 - canvas.height/2 + camSettings.maxY;
-      camera.x += (targetX - camera.x) * camSettings.lerp;
-      camera.y += (targetY - camera.y) * camSettings.lerp * 0.6; // Más estable en Y
-      
-      // Límites del mundo
-      camera.x = Math.max(0, Math.min(camera.x, WORLD_WIDTH - canvas.width));
+      // Cámara & Shake
+      let targetX = player.x+player.w/2-canvas.width/2+(player.facing*camSettings.lookahead);
+      let targetY = player.y+player.h/2-canvas.height/2+camSettings.maxY;
+      camera.x += (targetX-camera.x)*camSettings.lerp;
+      camera.y += (targetY-camera.y)*camSettings.lerp*0.6;
+      camera.x = Math.max(0, Math.min(camera.x, WORLD_WIDTH-canvas.width));
       camera.y = Math.max(camSettings.minY, Math.min(camera.y, camSettings.maxY));
+      if(screenShake.intensity > 0.5) { screenShake.x=(Math.random()-0.5)*screenShake.intensity; screenShake.y=(Math.random()-0.5)*screenShake.intensity; screenShake.intensity*=screenShake.decay; }
+      else screenShake.x = screenShake.y = 0;
+    }
+
+    /* =========================================
+       💥 COLISIONES & COMBATE
+       ========================================= */
+    function checkOverlap(a, b) { return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y; }
+    
+    function takeDamage(kbDir) {
+      player.hp--; player.invincible = I_FRAMES_PLAYER; player.flashTimer = 12;
+      player.vx = kbDir * PLAYER_KNOCKBACK; player.vy = -4;
+      spawnParticles(player.x+player.w/2, player.y+player.h/2, 10, '#ff4444', 3, 0.2);
+      hitStopTimer = 4; screenShake.intensity = 5;
     }
 
     function resolveCollisions(axis) {
-      for (let p of platforms) {
-        if (axis === 'x') {
-          if (player.x < p.x + p.w && player.x + player.w > p.x &&
-              player.y + player.h > p.y + 4 && player.y < p.y + p.h - 4) {
-            if (player.vx > 0) player.x = p.x - player.w;
-            else player.x = p.x + p.w;
-            player.vx = 0;
-          }
-        } else {
-          if (player.x + player.w > p.x + 2 && player.x < p.x + p.w - 2) {
-            if (p.type === 'oneway') {
-              // Solo colisiona si cae desde arriba y está por encima del borde superior
-              if (player.vy >= 0 && player.y + player.h - player.vy <= p.y + 2) {
-                player.y = p.y - player.h;
-                player.grounded = true;
-                player.vy = 0;
-              }
-            } else if (player.y < p.y + p.h && player.y + player.h > p.y) {
-              if (player.vy > 0) {
-                player.y = p.y - player.h;
-                player.grounded = true;
-                player.vy = 0;
-              } else {
-                player.y = p.y + p.h;
-                player.vy = 0;
-              }
-            }
+      for(let p of platforms) {
+        if(axis==='x' && player.x<p.x+p.w && player.x+player.w>p.x && player.y+player.h>p.y+4 && player.y<p.y+p.h-4) {
+          player.vx>0 ? player.x=p.x-player.w : player.x=p.x+p.w; player.vx=0;
+        } else if(axis==='y' && player.x+player.w>p.x+2 && player.x<p.x+p.w-2) {
+          if(p.type==='oneway') {
+            if(player.vy>=0 && player.y+player.h-player.vy<=p.y+2) { player.y=p.y-player.h; player.grounded=true; player.vy=0; }
+          } else if(player.y<p.y+p.h && player.y+player.h>p.y) {
+            player.vy>0 ? (player.y=p.y-player.h, player.grounded=true, player.vy=0) : (player.y=p.y+p.h, player.vy=0);
           }
         }
       }
     }
 
+    function resolveEnemyCollisions(axis, e) {
+      for(let p of platforms) {
+        if(axis==='x' && e.x<p.x+p.w && e.x+e.w>p.x && e.y+e.h>p.y+5 && e.y<p.y+p.h-5) {
+          e.vx>0 ? e.x=p.x-e.w : e.x=p.x+p.w; e.vx*=-0.5; e.facing*=-1;
+        } else if(axis==='y' && e.x+e.w>p.x+3 && e.x<p.x+p.w-3) {
+          if(e.vy>0 && e.y+e.h>p.y && e.y+e.h-e.vy<=p.y+5) { e.y=p.y-e.h; e.vy=0; }
+          else if(e.vy<0) { e.y=p.y+p.h; e.vy=0; }
+        }
+      }
+    }
+
     /* =========================================
-       🖼️ RENDER (Mundo, Luz, Animaciones)
+       🖼️ RENDER
        ========================================= */
     function render() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // 1. FONDO PROFUNDO (Parallax Capa 1)
+      ctx.clearRect(0,0,canvas.width,canvas.height);
       drawBackgroundLayer(0.15, '#0d0f16', 0.4);
       
       ctx.save();
-      ctx.translate(-camera.x, -camera.y);
+      ctx.translate(-camera.x+screenShake.x, -camera.y+screenShake.y);
 
-      // 2. PLATAFORMAS (Parallax Capa 2 / Juego)
-      ctx.shadowColor = '#2a3555';
-      ctx.shadowBlur = 8;
-      for (let p of platforms) {
-        let baseColor = p.type === 'solid' ? '#161924' : '#1c2030';
-        let edgeColor = p.type === 'solid' ? '#232838' : '#2a3045';
-        
-        ctx.fillStyle = baseColor;
-        ctx.fillRect(p.x, p.y, p.w, p.h);
-        
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = edgeColor;
-        ctx.fillRect(p.x, p.y, p.w, 3); // Borde superior iluminado
-        ctx.fillStyle = '#11131c';
-        ctx.fillRect(p.x, p.y+3, p.w, p.h-3);
-        
-        // Detalles de textura simple
-        ctx.fillStyle = 'rgba(40,50,70,0.3)';
-        for(let i=10; i<p.w; i+=25) ctx.fillRect(p.x+i, p.y+4, 1, p.h-8);
+      // Plataformas
+      for(let p of platforms) {
+        ctx.fillStyle = p.type==='solid'?'#161924':'#1c2030';
+        ctx.fillRect(p.x,p.y,p.w,p.h);
+        ctx.shadowBlur=8; ctx.shadowColor='#2a3555';
+        ctx.fillStyle = p.type==='solid'?'#232838':'#2a3045';
+        ctx.fillRect(p.x,p.y,p.w,3);
+        ctx.shadowBlur=0; ctx.fillStyle='#11131c'; ctx.fillRect(p.x,p.y+3,p.w,p.h-3);
       }
 
-      // 3. POLVO AMBIENTAL
-      ctx.fillStyle = '#556688';
-      for (let d of ambientDust) {
-        ctx.globalAlpha = d.alpha;
-        ctx.beginPath(); ctx.arc(d.x, d.y, d.size, 0, Math.PI*2); ctx.fill();
+      // Polvo ambiental
+      ctx.fillStyle='#556688';
+      for(let d of ambientDust) { ctx.globalAlpha=d.alpha; ctx.beginPath(); ctx.arc(d.x,d.y,d.size,0,Math.PI*2); ctx.fill(); }
+      ctx.globalAlpha=1;
+
+      // Enemigos
+      for(let e of enemies) {
+        if(e.respawnTimer>0) continue;
+        let ex=e.x, ey=e.y, ew=e.w, eh=e.h;
+        // Flash de daño
+        ctx.fillStyle = e.flashTimer>0 ? '#ffffff' : '#2a2030';
+        ctx.shadowColor = e.flashTimer>0 ? '#ffaa33' : '#ff4455';
+        ctx.shadowBlur = e.flashTimer>0 ? 15 : 6;
+        ctx.beginPath(); ctx.roundRect(ex,ey,ew,eh,5); ctx.fill();
+        ctx.shadowBlur=0;
+        // Ojos
+        ctx.fillStyle = '#ff5566';
+        let eyeX = e.facing>0 ? ex+ew-8 : ex+3;
+        ctx.fillRect(eyeX, ey+8, 5, 6);
+        // Barra de vida
+        let hpW = (e.hp/e.maxHp)*ew;
+        ctx.fillStyle='#442222'; ctx.fillRect(ex, ey-8, ew, 4);
+        ctx.fillStyle='#ff5566'; ctx.fillRect(ex, ey-8, hpW, 4);
       }
-      ctx.globalAlpha = 1;
 
-      // 4. JUGADOR
-      drawPlayer();
+      // Jugador
+      if (player.invincible===0 || Math.floor(Date.now()/60)%2===0) {
+        let px=player.x, py=player.y, pw=player.w, ph=player.h+player.breathOffset;
+        let lean=player.lean, stretch=player.stretchY;
+        let ox=px-lean*4, oy=py-player.breathOffset/2+stretch*5;
+        
+        // Flash de daño
+        if(player.flashTimer>0) { ctx.fillStyle='#ffffff'; ctx.shadowBlur=12; ctx.shadowColor='#ff3333'; player.flashTimer--; }
+        else { ctx.fillStyle='#dce4f5'; ctx.shadowBlur=10; ctx.shadowColor='#88aadd'; }
+        
+        ctx.save(); ctx.translate(ox+pw/2, oy+ph/2); ctx.rotate(lean*0.1); ctx.scale(1-Math.abs(stretch)*0.2, 1+stretch);
+        ctx.beginPath(); ctx.roundRect(-pw/2, -ph/2, pw, ph, 6); ctx.fill(); ctx.restore();
+        ctx.shadowBlur=0;
 
-      // 5. PARTÍCULAS ACTIVAS
-      for (let i=particles.length-1; i>=0; i--) {
-        let p = particles[i];
-        p.x += p.vx; p.y += p.vy;
-        p.vy += 0.05; p.life--;
-        if (p.life <= 0) { particles.splice(i, 1); continue; }
-        let a = p.life / p.maxLife;
-        ctx.globalAlpha = a;
-        ctx.fillStyle = p.color;
-        ctx.shadowColor = p.color; ctx.shadowBlur = 4;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.size * a, 0, Math.PI*2); ctx.fill();
+        // Ojos
+        ctx.fillStyle='#080a12';
+        ctx.fillRect(ox+(player.facing>0?pw-9:5), oy+10+(player.vy<-2?-1:0), 6, 8);
+
+        // Capa
+        ctx.strokeStyle='#5a6a90'; ctx.lineWidth=3; ctx.lineCap='round';
+        ctx.beginPath();
+        for(let i=0; i<player.cape.length; i++) {
+          let c=player.cape[i]; let a=0.5-(i*0.035);
+          ctx.globalAlpha=Math.max(0,a);
+          if(i===0) ctx.moveTo(c.x-(player.facing*6), c.y);
+          else ctx.lineTo(c.x-(player.facing*12)+Math.sin(Date.now()*0.01+i)*2, c.y);
+        }
+        ctx.stroke(); ctx.globalAlpha=1;
+
+        // Efecto Espada (Slash)
+        if(player.attack.active && player.attack.timer>3) {
+          let t = 1 - (player.attack.timer / ATTACK_DURATION);
+          let slashScale = 1.2 - Math.abs(t-0.5)*2;
+          ctx.save();
+          ctx.translate(ox+pw/2, oy+ph/2);
+          ctx.rotate(player.facing > 0 ? -0.3 + t*1.2 : Math.PI + 0.3 - t*1.2);
+          ctx.scale(player.facing * slashScale, slashScale);
+          ctx.fillStyle = `rgba(200, 220, 255, ${Math.sin(t*Math.PI)*0.8})`;
+          ctx.shadowColor='#aaccff'; ctx.shadowBlur=10;
+          ctx.beginPath(); ctx.arc(15, -10, 28, -0.8, 0.8); ctx.lineTo(15, -10); ctx.closePath(); ctx.fill();
+          ctx.restore();
+        }
       }
-      ctx.shadowBlur = 0; ctx.globalAlpha = 1;
 
+      // Partículas activas
+      for(let p of particles) {
+        let a=p.life/p.maxLife; ctx.globalAlpha=a; ctx.fillStyle=p.color;
+        ctx.shadowColor=p.color; ctx.shadowBlur=4;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size*a, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.shadowBlur=0; ctx.globalAlpha=1;
       ctx.restore();
 
-      // 6. CAPAS FOREGROUD / ATMÓSFERA (Parallax Capa 3)
+      // Foreground & UI
       drawForegroundVignette();
-      
-      // UI Minimalista
       drawUI();
     }
 
     function drawBackgroundLayer(parallaxFactor, color, opacity) {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = opacity;
-      let offX = -camera.x * parallaxFactor;
-      // Formas cavernarias simples
+      ctx.fillStyle=color; ctx.globalAlpha=opacity;
+      let offX=-camera.x*parallaxFactor;
       for(let i=0; i<8; i++) {
-        let bx = offX + (i * 220);
-        let by = canvas.height - 100 - (Math.sin(i*1.5)*40);
-        ctx.beginPath();
-        ctx.moveTo(bx, canvas.height);
-        ctx.quadraticCurveTo(bx+80, by-60, bx+160, canvas.height);
-        ctx.fill();
+        let bx=offX+(i*220), by=canvas.height-100-(Math.sin(i*1.5)*40);
+        ctx.beginPath(); ctx.moveTo(bx,canvas.height); ctx.quadraticCurveTo(bx+80,by-60,bx+160,canvas.height); ctx.fill();
       }
-      ctx.globalAlpha = 1;
-    }
-
-    function drawPlayer() {
-      let px = player.x, py = player.y;
-      let breath = player.breathOffset;
-      let lean = player.lean;
-      let stretch = player.stretchY;
-      
-      let w = player.w, h = player.h + breath;
-      let ox = px - lean * 4;
-      let oy = py - breath/2 + stretch * 5;
-      
-      // Sombra dinámica en el suelo
-      if (player.grounded || player.vy > 2) {
-        let shadowScale = Math.max(0.3, 1 - (player.y - platforms.find(p=>player.y+player.h>=p.y&&player.y+player.h<p.y+20)?.y||0)/150);
-        ctx.globalAlpha = 0.4 * shadowScale;
-        ctx.fillStyle = '#000';
-        ctx.beginPath();
-        ctx.ellipse(px + w/2, platforms.find(p=>player.y+player.h>=p.y && player.y+player.h<p.y+30)?.y||400, w*1.2, 3, 0, 0, Math.PI*2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-
-      // Glow base
-      ctx.shadowColor = '#88aadd';
-      ctx.shadowBlur = 10 + Math.sin(Date.now()*0.004)*2;
-      
-      // Cuerpo principal
-      ctx.fillStyle = '#dce4f5';
-      ctx.save();
-      ctx.translate(ox + w/2, oy + h/2);
-      ctx.rotate(lean * 0.1);
-      ctx.scale(1 - Math.abs(stretch)*0.2, 1 + stretch);
-      
-      // Forma capsular estilo Hollow Knight
-      ctx.beginPath();
-      ctx.roundRect(-w/2, -h/2, w, h, 6);
-      ctx.fill();
-      ctx.restore();
-
-      ctx.shadowBlur = 0;
-
-      // Ojos
-      ctx.fillStyle = '#080a12';
-      let eyeX = ox + (player.facing > 0 ? w-9 : 5);
-      let eyeY = oy + 10 + (player.vy < -2 ? -1 : 0); // Mirada arriba al saltar
-      ctx.fillRect(eyeX, eyeY, 6, 8);
-
-      // Capa (Trail suave)
-      ctx.strokeStyle = '#5a6a90';
-      ctx.lineWidth = 3; ctx.lineCap = 'round';
-      ctx.beginPath();
-      for(let i=0; i<player.cape.length; i++) {
-        let c = player.cape[i];
-        let a = 0.5 - (i*0.035);
-        ctx.globalAlpha = Math.max(0, a);
-        if(i===0) ctx.moveTo(c.x - (player.facing*6), c.y);
-        else ctx.lineTo(c.x - (player.facing*12) + Math.sin(Date.now()*0.01+i)*2, c.y);
-      }
-      ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.globalAlpha=1;
     }
 
     function drawForegroundVignette() {
-      let grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 100, canvas.width/2, canvas.height/2, 550);
-      grad.addColorStop(0, 'rgba(5,6,10,0)');
-      grad.addColorStop(0.8, 'rgba(8,10,18,0.5)');
-      grad.addColorStop(1, 'rgba(12,15,25,0.9)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0,0,canvas.width,canvas.height);
-      
-      // Línea de scan sutil
-      ctx.fillStyle = 'rgba(100,130,200,0.03)';
-      ctx.fillRect(0, (Date.now()*0.05)%canvas.height, canvas.width, 1);
+      let grad=ctx.createRadialGradient(canvas.width/2,canvas.height/2,100,canvas.width/2,canvas.height/2,550);
+      grad.addColorStop(0,'rgba(5,6,10,0)'); grad.addColorStop(0.8,'rgba(8,10,18,0.5)'); grad.addColorStop(1,'rgba(12,15,25,0.9)');
+      ctx.fillStyle=grad; ctx.fillRect(0,0,canvas.width,canvas.height);
     }
 
     function drawUI() {
-      ctx.fillStyle = '#7a8baf';
-      ctx.font = '600 13px "Segoe UI", system-ui';
-      ctx.textAlign = 'left';
-      ctx.fillText('FASE 2: MUNDO & VISUAL', 20, 30);
-      
-      ctx.fillStyle = '#4a5a7a';
-      ctx.font = '12px monospace';
-      ctx.fillText('A/D o ←/→: Mover  |  ESPACIO: Saltar', 20, 50);
-      
-      // Indicador de estado
-      let state = player.grounded ? (Math.abs(player.vx)>1 ? 'CORRIENDO' : 'REPOSO') : (player.vy<0 ? 'SALTANDO' : 'CAYENDO');
-      ctx.fillStyle = '#556688';
-      ctx.fillText(`ESTADO: ${state} | CAM: ${Math.round(camera.x)}`, 20, 70);
+      ctx.textAlign='left';
+      ctx.fillStyle='#7a8baf'; ctx.font='600 14px "Segoe UI", system-ui';
+      ctx.fillText('FASE 3: COMBATE', 20, 30);
+      ctx.fillStyle='#4a5a7a'; ctx.font='12px monospace';
+      ctx.fillText('A/D: Mover | ESPACIO: Saltar | X: Atacar', 20, 50);
+
+      // Máscaras de vida (estilo Hollow Knight)
+      let maskX = 20, maskY = 75;
+      for(let i=0; i<player.maxHp; i++) {
+        ctx.beginPath(); ctx.arc(maskX+i*22, maskY, 8, 0, Math.PI*2);
+        ctx.fillStyle = i<player.hp ? '#e8eef5' : '#222430';
+        ctx.fill();
+        if(i<player.hp) { ctx.shadowColor='#88aadd'; ctx.shadowBlur=6; ctx.fill(); ctx.shadowBlur=0; }
+        ctx.strokeStyle = '#1a1d2a'; ctx.lineWidth=1; ctx.stroke();
+      }
     }
 
     /* =========================================
        🔄 GAME LOOP
        ========================================= */
-    function loop() {
-      update();
-      render();
-      requestAnimationFrame(loop);
-    }
-
-    // 🚀 INICIO
+    function loop() { update(); render(); requestAnimationFrame(loop); }
     loop();
   </script>
 </body>
